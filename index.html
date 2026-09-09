@@ -552,7 +552,7 @@
   }
 
   // ---------- rendering ----------
-  var TRACKED_FIELD_IDS = ["amountInput", "textInput", "employeeSelect", "empNameInput", "empSalaryInput", "editSalaryInput"];
+  var TRACKED_FIELD_IDS = ["amountInput", "employeeSelect", "empNameInput", "empSalaryInput", "editSalaryInput"];
   function captureFormValues(){
     var vals = { focus: document.activeElement && document.activeElement.id };
     TRACKED_FIELD_IDS.forEach(function(id){
@@ -708,21 +708,25 @@
         '<div class="amount-meta">' + count + (count === 1 ? " запись" : " записей") + '</div>' +
       '</div>' +
       empSummaryHtml +
-      '<div class="section-label">Добавить запись</div>' +
-      '<form class="entry-form" id="addEntryForm">' +
-        '<div class="field">' +
-          '<label for="employeeSelect">Сотрудник</label>' +
-          '<select id="employeeSelect">' +
-            '<option value="">Без сотрудника (просто запись)</option>' +
-            employeeOptions +
-          '</select>' +
-        '</div>' +
-        '<div class="row">' +
-          '<div class="field"><label for="amountInput" id="amountLabel">Сумма, ₽</label><input class="amount-input" id="amountInput" name="amount" type="number" inputmode="decimal" step="0.01" min="0" placeholder="5000" required></div>' +
-        '</div>' +
-        '<div class="field" id="freeTextField"><input id="textInput" name="text" type="text" placeholder="Комментарий (необязательно)" maxlength="200"></div>' +
-        '<button type="submit" class="add-btn">Добавить</button>' +
-      '</form>' +
+      '<div class="section-label">Выдать аванс</div>' +
+      (employees.length
+        ? (
+          '<form class="entry-form" id="addEntryForm">' +
+            '<div class="field">' +
+              '<label for="employeeSelect">Сотрудник</label>' +
+              '<select id="employeeSelect" required>' +
+                '<option value="" disabled selected>Выберите сотрудника</option>' +
+                employeeOptions +
+              '</select>' +
+            '</div>' +
+            '<div class="row">' +
+              '<div class="field"><label for="amountInput">Сколько взял, ₽</label><input class="amount-input" id="amountInput" name="amount" type="number" inputmode="decimal" step="0.01" min="0" placeholder="5000" required></div>' +
+            '</div>' +
+            '<button type="submit" class="add-btn">Выдать аванс</button>' +
+          '</form>'
+        )
+        : '<div class="empty-note">Сначала добавьте сотрудника в разделе «Сотрудники», чтобы выдавать авансы. <span class="edit-link" data-action="open-employees" style="cursor:pointer;text-decoration:underline;">Перейти к сотрудникам</span></div>'
+      ) +
       '<div class="section-label">Записи за день</div>' +
       '<div class="entries-list">' + rowsHtml + '</div>';
   }
@@ -772,23 +776,12 @@
       '<div class="employees-list">' + rows + '</div>';
   }
 
-  function updateEntryFormVisibility(){
-    var sel = document.getElementById("employeeSelect");
-    if (!sel) return;
-    var freeText = document.getElementById("freeTextField");
-    var amountLabel = document.getElementById("amountLabel");
-    var chosen = !!sel.value;
-    if (freeText) freeText.hidden = chosen;
-    if (amountLabel) amountLabel.textContent = chosen ? "Сколько взял, ₽" : "Сумма, ₽";
-  }
-
   function render(){
     var vals = (view === "day" || view === "employees") ? captureFormValues() : null;
     if (view === "week") renderWeekView();
     else if (view === "employees") renderEmployeesView();
     else renderDayView(currentDay);
     if (vals) restoreFormValues(vals);
-    if (view === "day") updateEntryFormVisibility();
   }
 
   // ---------- light DOM-only refresh for the 15:00 / midnight rollover ----------
@@ -799,12 +792,6 @@
   }
 
   // ---------- events (delegated so re-renders don't lose listeners) ----------
-  appEl.addEventListener("change", function(e){
-    if (e.target && e.target.id === "employeeSelect"){
-      updateEntryFormVisibility();
-    }
-  });
-
   appEl.addEventListener("click", function(e){
     var el = e.target.closest("[data-action]");
     if (!el) return;
@@ -856,21 +843,22 @@
     if (e.target && e.target.id === "addEntryForm"){
       e.preventDefault();
       var amountInput = document.getElementById("amountInput");
-      var textInput = document.getElementById("textInput");
       var employeeSelect = document.getElementById("employeeSelect");
+      if (!employeeSelect || !employeeSelect.value){
+        toast("Выберите сотрудника из списка");
+        return;
+      }
       var amount = parseFloat(amountInput.value);
       if (!amount || amount <= 0){
         toast("Укажите сумму больше нуля");
         return;
       }
-      var text = employeeSelect && employeeSelect.value ? employeeSelect.value : textInput.value.trim();
+      var text = employeeSelect.value;
       amountInput.value = "";
-      textInput.value = "";
-      if (employeeSelect) employeeSelect.value = "";
+      employeeSelect.value = "";
       addEntry(currentDay, amount, text);
-      updateEntryFormVisibility();
-      var freshAmount = document.getElementById("amountInput");
-      if (freshAmount) freshAmount.focus();
+      var freshSelect = document.getElementById("employeeSelect");
+      if (freshSelect) freshSelect.focus();
     } else if (e.target && e.target.id === "addEmployeeForm"){
       e.preventDefault();
       var nameInput = document.getElementById("empNameInput");
