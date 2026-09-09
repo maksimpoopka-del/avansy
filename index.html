@@ -233,6 +233,7 @@
   .edit-salary-row input{ flex:1; }
   .edit-salary-actions{ display:flex; gap:8px; }
   .edit-salary-actions .add-btn{ flex:1; padding:9px; font-size:13px; }
+  .edit-salary-actions .add-btn.danger-btn{ background: var(--danger); }
   .edit-salary-actions .cancel-btn{
     flex:none; background:none; border:1px solid var(--border); color: var(--text-dim);
     border-radius: var(--radius-s); padding:9px 14px; font-size:13px; cursor:pointer; font-family: inherit;
@@ -458,6 +459,7 @@
   var employees = loadEmployees(); // {id, name, salary}
   var view = "week"; // "week" | "day" | "employees"
   var editingEmployeeId = null;
+  var confirmDeleteEmployeeId = null;
   var pendingImport = null; // parsed backup file awaiting confirmation
   var weekStart = mondayOf(todayYMD());
   var currentDay = null;
@@ -566,13 +568,28 @@
     persistEmployees();
     render();
   }
-  function updateEmployeeSalary(id, salary){
+  function updateEmployee(id, name, salary){
+    var oldName = null;
     for (var i=0;i<employees.length;i++){
-      if (employees[i].id === id){ employees[i].salary = salary; break; }
+      if (employees[i].id === id){
+        oldName = employees[i].name;
+        employees[i].name = name;
+        employees[i].salary = salary;
+        break;
+      }
+    }
+    // Past entries store the employee's name as plain text (not an id), so a
+    // rename must relink them or the day/summary views would lose the connection.
+    if (oldName !== null && normName(oldName) !== normName(name)){
+      var oldNorm = normName(oldName);
+      entries.forEach(function(e){
+        if (normName(e.text) === oldNorm) e.text = name;
+      });
+      persistEntries();
     }
     persistEmployees();
     editingEmployeeId = null;
-    toast("Зарплата обновлена");
+    toast("Данные сотрудника обновлены");
     render();
   }
 
@@ -653,7 +670,7 @@
   }
 
   // ---------- rendering ----------
-  var TRACKED_FIELD_IDS = ["amountInput", "employeeSelect", "empNameInput", "editSalaryInput"];
+  var TRACKED_FIELD_IDS = ["amountInput", "employeeSelect", "empNameInput", "editNameInput", "editSalaryInput"];
   function captureFormValues(){
     var vals = { focus: document.activeElement && document.activeElement.id };
     TRACKED_FIELD_IDS.forEach(function(id){
@@ -835,15 +852,26 @@
   function renderEmployeesView(){
     var rows = employees.length
       ? employees.map(function(emp){
+          if (confirmDeleteEmployeeId === emp.id){
+            return (
+              '<div class="employee-row editing">' +
+                '<div class="import-confirm-text">Удалить сотрудника «' + escapeHtml(emp.name) + '»? Его записи об авансах останутся в днях, но он пропадёт из списка сотрудников.</div>' +
+                '<div class="edit-salary-actions">' +
+                  '<button type="button" class="add-btn danger-btn" data-action="confirm-delete-employee" data-id="' + emp.id + '">Да, удалить</button>' +
+                  '<button type="button" class="cancel-btn" data-action="cancel-delete-employee">Отмена</button>' +
+                '</div>' +
+              '</div>'
+            );
+          }
           if (editingEmployeeId === emp.id){
             return (
               '<div class="employee-row editing">' +
-                '<div class="employee-name">' + escapeHtml(emp.name) + '</div>' +
-                '<form class="edit-salary-row" id="editSalaryForm" data-id="' + emp.id + '">' +
-                  '<input id="editSalaryInput" class="amount-input" type="number" inputmode="decimal" step="0.01" min="0" value="' + emp.salary + '" required>' +
+                '<form class="entry-form" id="editEmployeeForm" data-id="' + emp.id + '" style="padding:0;border:none;background:none;margin-bottom:0;">' +
+                  '<div class="field"><input id="editNameInput" type="text" value="' + escapeHtml(emp.name) + '" maxlength="60" required placeholder="Имя"></div>' +
+                  '<div class="field"><input id="editSalaryInput" class="amount-input" type="number" inputmode="decimal" step="0.01" min="0" value="' + emp.salary + '" placeholder="Зарплата в неделю, ₽"></div>' +
                 '</form>' +
                 '<div class="edit-salary-actions">' +
-                  '<button type="submit" form="editSalaryForm" class="add-btn">Сохранить</button>' +
+                  '<button type="submit" form="editEmployeeForm" class="add-btn">Сохранить</button>' +
                   '<button type="button" class="cancel-btn" data-action="cancel-edit-employee">Отмена</button>' +
                 '</div>' +
               '</div>'
@@ -870,7 +898,7 @@
                 datesHtml +
               '</div>' +
               '<div class="employee-row-actions">' +
-                '<button type="button" class="edit-link" data-action="edit-employee-salary" data-id="' + emp.id + '">Изменить</button>' +
+                '<button type="button" class="edit-link" data-action="edit-employee" data-id="' + emp.id + '">Изменить</button>' +
                 '<button type="button" class="del" data-action="delete-employee" data-id="' + emp.id + '">Удалить</button>' +
               '</div>' +
             '</div>'
@@ -947,6 +975,7 @@
     } else if (action === "back-to-week"){
       view = "week";
       editingEmployeeId = null;
+      confirmDeleteEmployeeId = null;
       pendingImport = null;
       render();
     } else if (action === "prev-week"){
@@ -971,12 +1000,21 @@
     } else if (action === "open-employees"){
       view = "employees";
       editingEmployeeId = null;
+      confirmDeleteEmployeeId = null;
       pendingImport = null;
       render();
     } else if (action === "delete-employee"){
-      if (editingEmployeeId === el.dataset.id) editingEmployeeId = null;
+      editingEmployeeId = null;
+      confirmDeleteEmployeeId = el.dataset.id;
+      render();
+    } else if (action === "confirm-delete-employee"){
+      confirmDeleteEmployeeId = null;
       deleteEmployee(el.dataset.id);
-    } else if (action === "edit-employee-salary"){
+    } else if (action === "cancel-delete-employee"){
+      confirmDeleteEmployeeId = null;
+      render();
+    } else if (action === "edit-employee"){
+      confirmDeleteEmployeeId = null;
       editingEmployeeId = el.dataset.id;
       render();
     } else if (action === "cancel-edit-employee"){
@@ -1038,15 +1076,23 @@
       addEmployee(name, 0);
       var freshName = document.getElementById("empNameInput");
       if (freshName) freshName.focus();
-    } else if (e.target && e.target.id === "editSalaryForm"){
+    } else if (e.target && e.target.id === "editEmployeeForm"){
       e.preventDefault();
+      var editId = e.target.dataset.id;
+      var editNameInput = document.getElementById("editNameInput");
       var editSalaryInput = document.getElementById("editSalaryInput");
-      var newSalary = parseFloat(editSalaryInput.value);
-      if (!newSalary || newSalary <= 0){
-        toast("Укажите зарплату больше нуля");
+      var newName = editNameInput.value.trim();
+      if (!newName){
+        toast("Введите имя сотрудника");
         return;
       }
-      updateEmployeeSalary(e.target.dataset.id, newSalary);
+      var dupe = findEmployeeByName(newName);
+      if (dupe && dupe.id !== editId){
+        toast("Сотрудник с таким именем уже есть");
+        return;
+      }
+      var newSalary = parseFloat(editSalaryInput.value) || 0;
+      updateEmployee(editId, newName, newSalary);
     }
   });
 
