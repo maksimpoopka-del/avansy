@@ -206,7 +206,7 @@
   /* employees management view */
   .employees-list{ display:flex; flex-direction:column; gap:6px; }
   .employee-row{
-    display:flex; align-items:center; justify-content:space-between; gap:10px;
+    display:flex; align-items:flex-start; justify-content:space-between; gap:10px;
     background: var(--surface);
     border: 1px solid var(--border);
     border-radius: var(--radius-s);
@@ -214,6 +214,11 @@
   }
   .employee-name{ font-weight:600; font-size: 14px; }
   .employee-salary{ color: var(--text-dim); font-size: 12px; margin-top:2px; }
+  .employee-advance-dates{ display:flex; flex-direction:column; gap:2px; margin-top:6px; }
+  .employee-advance-date-row{
+    display:flex; justify-content:space-between; gap:12px;
+    font-size: 11px; color: var(--text-faint);
+  }
   .employee-row .del{
     background:none; border:none; color: var(--danger); cursor:pointer;
     font-size: 12px; flex:none; padding: 4px 6px;
@@ -232,6 +237,15 @@
     flex:none; background:none; border:1px solid var(--border); color: var(--text-dim);
     border-radius: var(--radius-s); padding:9px 14px; font-size:13px; cursor:pointer; font-family: inherit;
   }
+  .backup-note{ color: var(--text-dim); font-size: 12px; line-height:1.5; margin-bottom: 10px; }
+  .import-confirm{
+    background: var(--gold-soft);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-m);
+    padding: 14px;
+    display:flex; flex-direction:column; gap:10px;
+  }
+  .import-confirm-text{ font-size: 13px; line-height:1.5; }
 
   /* day view */
   .back-row{ display:flex; align-items:center; gap:10px; margin-bottom: 14px; }
@@ -444,6 +458,7 @@
   var employees = loadEmployees(); // {id, name, salary}
   var view = "week"; // "week" | "day" | "employees"
   var editingEmployeeId = null;
+  var pendingImport = null; // parsed backup file awaiting confirmation
   var weekStart = mondayOf(todayYMD());
   var currentDay = null;
   var historyOpen = false;
@@ -510,6 +525,16 @@
   function employeeWeekAdvanceTotal(ws, empId){
     return employeeWeekEntries(ws, empId).reduce(function(s,e){ return s + (Number(e.amount)||0); }, 0);
   }
+  // All of this employee's advances across every week, newest first — for the employee list.
+  function employeeAllTimeEntries(empId){
+    return entries.filter(function(e){
+      var emp = findEmployeeByName(e.text);
+      return emp && emp.id === empId;
+    }).sort(function(a,b){ return (b.createdAt||0) - (a.createdAt||0); });
+  }
+  function employeeAllTimeAdvanceTotal(empId){
+    return employeeAllTimeEntries(empId).reduce(function(s,e){ return s + (Number(e.amount)||0); }, 0);
+  }
 
   function addEntry(date, amount, text){
     var payload = {
@@ -551,8 +576,84 @@
     render();
   }
 
+  // ---------- backup: export / import all data as one file ----------
+  // On claude.ai (the Artifact preview) plain <a download> links do nothing —
+  // the viewer only lets a page hand over a file through this capability.
+  // On a real site (GitHub Pages) or the standalone file there is no
+  // window.claude at all, so we fall back to a normal browser download.
+  var downloadsCapability = null;
+  if (typeof window !== "undefined" && window.claude && typeof window.claude.use === "function"){
+    window.claude.use("downloads").then(function(ns){ downloadsCapability = ns; }).catch(function(){});
+  }
+  function exportBackup(){
+    var payload = {
+      app: "avansy",
+      version: 1,
+      exportedAt: new Date().toISOString(),
+      entries: entries,
+      employees: employees
+    };
+    var json = JSON.stringify(payload, null, 2);
+    var filename = "avansy-backup-" + todayYMD() + ".json";
+
+    if (downloadsCapability && typeof downloadsCapability.save === "function"){
+      downloadsCapability.save({ filename: filename, data: json }).then(function(){
+        toast("Резервная копия сохранена");
+      }).catch(function(err){
+        if (err && err.code === "declined") return;
+        toast("Не удалось сохранить копию");
+      });
+      return;
+    }
+
+    var blob = new Blob([json], { type: "application/json" });
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement("a");
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(function(){ URL.revokeObjectURL(url); }, 1000);
+    toast("Резервная копия сохранена");
+  }
+  function handleImportFile(file){
+    var reader = new FileReader();
+    reader.onload = function(){
+      var data;
+      try {
+        data = JSON.parse(String(reader.result));
+      } catch (err){
+        toast("Не удалось прочитать файл — это не резервная копия");
+        return;
+      }
+      if (!data || !Array.isArray(data.entries) || !Array.isArray(data.employees)){
+        toast("Файл повреждён или это не резервная копия Авансы");
+        return;
+      }
+      pendingImport = data;
+      render();
+    };
+    reader.onerror = function(){ toast("Не удалось прочитать файл"); };
+    reader.readAsText(file);
+  }
+  function confirmImport(){
+    if (!pendingImport) return;
+    entries = pendingImport.entries;
+    employees = pendingImport.employees;
+    persistEntries();
+    persistEmployees();
+    pendingImport = null;
+    toast("Данные восстановлены из копии");
+    render();
+  }
+  function cancelImport(){
+    pendingImport = null;
+    render();
+  }
+
   // ---------- rendering ----------
-  var TRACKED_FIELD_IDS = ["amountInput", "employeeSelect", "empNameInput", "empSalaryInput", "editSalaryInput"];
+  var TRACKED_FIELD_IDS = ["amountInput", "employeeSelect", "empNameInput", "editSalaryInput"];
   function captureFormValues(){
     var vals = { focus: document.activeElement && document.activeElement.id };
     TRACKED_FIELD_IDS.forEach(function(id){
@@ -748,11 +849,25 @@
               '</div>'
             );
           }
+          var allTimeEntries = employeeAllTimeEntries(emp.id);
+          var allTimeTotal = allTimeEntries.reduce(function(s,e){ return s + (Number(e.amount)||0); }, 0);
+          var datesHtml = allTimeEntries.length
+            ? '<div class="employee-advance-dates">' + allTimeEntries.map(function(e){
+                var dow = (ymdToLocalDate(e.date).getDay() + 6) % 7;
+                return (
+                  '<div class="employee-advance-date-row">' +
+                    '<span>' + formatDateRu(e.date) + ', ' + WEEKDAYS_SHORT[dow] + '</span>' +
+                    '<span class="mono">' + formatMoney(e.amount) + '</span>' +
+                  '</div>'
+                );
+              }).join("") + '</div>'
+            : "";
           return (
             '<div class="employee-row">' +
               '<div>' +
                 '<div class="employee-name">' + escapeHtml(emp.name) + '</div>' +
-                '<div class="employee-salary mono">Зарплата в неделю: ' + formatMoney(emp.salary) + '</div>' +
+                '<div class="employee-salary mono">Всего взял авансов: ' + formatMoney(allTimeTotal) + '</div>' +
+                datesHtml +
               '</div>' +
               '<div class="employee-row-actions">' +
                 '<button type="button" class="edit-link" data-action="edit-employee-salary" data-id="' + emp.id + '">Изменить</button>' +
@@ -763,17 +878,46 @@
         }).join("")
       : '<div class="empty-note">Пока нет ни одного сотрудника.</div>';
 
+    var backupHtml;
+    if (pendingImport){
+      var impEntriesCount = pendingImport.entries.length;
+      var impEmpCount = pendingImport.employees.length;
+      var impWhen = "";
+      if (pendingImport.exportedAt){
+        var d = new Date(pendingImport.exportedAt);
+        if (!isNaN(d.getTime())) impWhen = " (сохранена " + d.toLocaleString("ru-RU") + ")";
+      }
+      backupHtml =
+        '<div class="import-confirm">' +
+          '<div class="import-confirm-text">Файл содержит ' + impEntriesCount + (impEntriesCount === 1 ? " запись" : " записей") +
+            " и " + impEmpCount + (impEmpCount === 1 ? " сотрудника" : " сотрудников") + impWhen + '. Заменить текущие данные на этом телефоне?</div>' +
+          '<div class="edit-salary-actions">' +
+            '<button type="button" class="add-btn" data-action="confirm-import">Заменить данные</button>' +
+            '<button type="button" class="cancel-btn" data-action="cancel-import">Отмена</button>' +
+          '</div>' +
+        '</div>';
+    } else {
+      backupHtml =
+        '<div class="bottom-actions">' +
+          '<button type="button" class="history-toggle" data-action="export-backup">Сохранить копию</button>' +
+          '<button type="button" class="history-toggle" data-action="trigger-import">Восстановить из файла</button>' +
+        '</div>' +
+        '<input type="file" id="importFileInput" accept="application/json,.json" style="display:none">';
+    }
+
     appEl.innerHTML =
       '<div class="back-row"><button type="button" class="back-btn" data-action="back-to-week">‹ К неделе</button></div>' +
-      '<div class="day-header"><div class="weekday">Сотрудники</div><div class="date mono">имя и зарплата в неделю</div></div>' +
+      '<div class="day-header"><div class="weekday">Сотрудники</div><div class="date mono">список сотрудников</div></div>' +
       '<div class="section-label">Добавить сотрудника</div>' +
       '<form class="entry-form" id="addEmployeeForm">' +
         '<div class="field"><input id="empNameInput" name="name" type="text" placeholder="Имя" maxlength="60" required></div>' +
-        '<div class="field"><input id="empSalaryInput" class="amount-input" name="salary" type="number" inputmode="decimal" step="0.01" min="0" placeholder="Зарплата в неделю, ₽" required></div>' +
         '<button type="submit" class="add-btn">Добавить сотрудника</button>' +
       '</form>' +
       '<div class="section-label">Список</div>' +
-      '<div class="employees-list">' + rows + '</div>';
+      '<div class="employees-list">' + rows + '</div>' +
+      '<div class="section-label">Резервная копия</div>' +
+      '<div class="backup-note">Сохраняет записи и сотрудников в один файл, который можно отправить себе в Telegram, почту или облако — и восстановить на новом телефоне.</div>' +
+      backupHtml;
   }
 
   function render(){
@@ -803,6 +947,7 @@
     } else if (action === "back-to-week"){
       view = "week";
       editingEmployeeId = null;
+      pendingImport = null;
       render();
     } else if (action === "prev-week"){
       weekStart = addDays(weekStart, -7);
@@ -826,6 +971,7 @@
     } else if (action === "open-employees"){
       view = "employees";
       editingEmployeeId = null;
+      pendingImport = null;
       render();
     } else if (action === "delete-employee"){
       if (editingEmployeeId === el.dataset.id) editingEmployeeId = null;
@@ -836,6 +982,23 @@
     } else if (action === "cancel-edit-employee"){
       editingEmployeeId = null;
       render();
+    } else if (action === "export-backup"){
+      exportBackup();
+    } else if (action === "trigger-import"){
+      var fileInput = document.getElementById("importFileInput");
+      if (fileInput) fileInput.click();
+    } else if (action === "confirm-import"){
+      confirmImport();
+    } else if (action === "cancel-import"){
+      cancelImport();
+    }
+  });
+
+  appEl.addEventListener("change", function(e){
+    if (e.target && e.target.id === "importFileInput"){
+      var file = e.target.files && e.target.files[0];
+      if (file) handleImportFile(file);
+      e.target.value = "";
     }
   });
 
@@ -862,15 +1025,9 @@
     } else if (e.target && e.target.id === "addEmployeeForm"){
       e.preventDefault();
       var nameInput = document.getElementById("empNameInput");
-      var salaryInput = document.getElementById("empSalaryInput");
       var name = nameInput.value.trim();
-      var salary = parseFloat(salaryInput.value);
       if (!name){
         toast("Введите имя сотрудника");
-        return;
-      }
-      if (!salary || salary <= 0){
-        toast("Укажите зарплату больше нуля");
         return;
       }
       if (findEmployeeByName(name)){
@@ -878,8 +1035,7 @@
         return;
       }
       nameInput.value = "";
-      salaryInput.value = "";
-      addEmployee(name, salary);
+      addEmployee(name, 0);
       var freshName = document.getElementById("empNameInput");
       if (freshName) freshName.focus();
     } else if (e.target && e.target.id === "editSalaryForm"){
