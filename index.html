@@ -1,0 +1,649 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Авансы</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=Work+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<style>
+  :root{
+    --bg: #ffffff;
+    --surface: #ffffff;
+    --surface-2: #eef2f0;
+    --surface-3: #d5deda;
+    --text: #172723;
+    --text-dim: #5c6f69;
+    --text-faint: #8a9a94;
+    --accent: #0e6b60;
+    --accent-strong: #084d45;
+    --accent-soft: #dcece8;
+    --gold: #a8660c;
+    --gold-soft: #f6e9d3;
+    --danger: #a4291f;
+    --danger-soft: #f5dfdc;
+    --border: #cfd9d5;
+    --shadow: 0 1px 2px rgba(15,40,35,0.06), 0 6px 16px -8px rgba(15,40,35,0.12);
+    --radius-s: 8px;
+    --radius-m: 14px;
+    --radius-l: 20px;
+  }
+  /* Background is intentionally fixed to light/white regardless of
+     system dark mode, per explicit request. */
+
+  *{ box-sizing: border-box; }
+  body{
+    background: var(--bg);
+    color: var(--text);
+    font-family: "Work Sans", system-ui, sans-serif;
+    margin: 0;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .wrap{
+    max-width: 560px;
+    margin: 0 auto;
+    padding: 20px 16px 64px;
+    min-height: 100vh;
+  }
+  h1,h2,h3{
+    font-family: "Fraunces", Georgia, serif;
+    text-wrap: balance;
+    margin: 0;
+  }
+  button{ font-family: inherit; }
+  button:focus-visible, input:focus-visible, [tabindex]:focus-visible{
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+  }
+  .mono{ font-family: "IBM Plex Mono", ui-monospace, monospace; font-variant-numeric: tabular-nums; }
+
+  /* header */
+  .app-header{
+    display:flex;
+    align-items:center;
+    gap:12px;
+    margin-bottom: 18px;
+  }
+  .app-mark{
+    width:40px; height:40px; border-radius: 11px;
+    background: linear-gradient(155deg, var(--accent) 0%, var(--accent-strong) 100%);
+    color: #fff;
+    display:flex; align-items:center; justify-content:center;
+    font-family:"Fraunces", serif; font-weight:700; font-size:19px;
+    flex: none;
+    box-shadow: var(--shadow);
+  }
+  .app-title{ font-size: 21px; font-weight: 600; line-height:1.1; }
+  .app-sub{ color: var(--text-dim); font-size: 13px; margin-top:2px; }
+
+  .banner{
+    background: var(--gold-soft);
+    border: 1px solid var(--border);
+    color: var(--text);
+    border-radius: var(--radius-s);
+    padding: 10px 12px;
+    font-size: 13px;
+    margin-bottom: 16px;
+    line-height:1.45;
+  }
+
+  /* week nav */
+  .week-nav{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap:8px;
+    margin-bottom: 14px;
+  }
+  .nav-btn{
+    width:38px; height:38px;
+    border-radius: 10px;
+    border:1px solid var(--border);
+    background: var(--surface);
+    color: var(--text);
+    display:flex; align-items:center; justify-content:center;
+    cursor:pointer;
+    flex: none;
+  }
+  .nav-btn:active{ background: var(--surface-2); }
+  .week-range{
+    text-align:center;
+    flex: 1;
+  }
+  .week-range .range{ font-size: 15px; font-weight:600; }
+  .week-range .today-link{
+    display:inline-block; margin-top:2px;
+    font-size:12px; color: var(--accent); cursor:pointer; text-decoration: underline;
+    text-underline-offset: 2px;
+  }
+
+  .week-total{
+    display:flex; justify-content:space-between; align-items:baseline;
+    background: var(--surface);
+    border:1px solid var(--border);
+    border-radius: var(--radius-m);
+    padding: 14px 16px;
+    margin-bottom: 16px;
+    box-shadow: var(--shadow);
+  }
+  .week-total .label{ font-size:13px; color:var(--text-dim); }
+  .week-total .value{ font-size: 20px; font-weight:600; color: var(--accent-strong); }
+
+  /* day cards */
+  .day-list{ display:flex; flex-direction:column; gap:8px; margin-bottom: 20px; }
+  .day-card{
+    display:flex; align-items:center; gap:12px;
+    background: var(--surface);
+    border:1px solid var(--border);
+    border-radius: var(--radius-m);
+    padding: 12px 14px;
+    cursor:pointer;
+    text-align:left;
+    width:100%;
+    color: inherit;
+  }
+  .day-card:active{ background: var(--surface-2); }
+  .day-card.is-today{ border-color: var(--accent); }
+  .day-date-block{ flex:none; width:56px; text-align:center; }
+  .day-date-block .dow{ font-size:11px; text-transform:uppercase; letter-spacing:.05em; color: var(--text-faint); }
+  .day-date-block .num{ font-size:20px; font-weight:600; font-family:"IBM Plex Mono", monospace; }
+  .day-mid{ flex:1; min-width:0; }
+  .day-mid .full-date{ font-size:12px; color: var(--text-dim); }
+  .day-mid .count{ font-size:12px; color: var(--text-faint); margin-top:1px; }
+  .day-right{ flex:none; text-align:right; }
+  .day-right .sum{ font-size:16px; font-weight:600; }
+  .day-right .status{ font-size:11px; margin-top:2px; }
+  .status-final{ color: var(--accent); }
+  .status-pending{ color: var(--gold); }
+  .status-future{ color: var(--text-faint); }
+  .status-empty{ color: var(--text-faint); }
+
+  .history-toggle{
+    display:flex; align-items:center; justify-content:center; gap:6px;
+    width:100%;
+    background:none; border: none;
+    color: var(--text-dim);
+    font-size: 13px;
+    padding: 8px;
+    cursor:pointer;
+    margin-bottom: 4px;
+  }
+  .history-list{ display:flex; flex-direction:column; gap:6px; margin-bottom: 18px; }
+  .history-item{
+    display:flex; justify-content:space-between; align-items:center;
+    background: var(--surface-2);
+    border-radius: var(--radius-s);
+    padding: 10px 12px;
+    cursor:pointer;
+    font-size: 13px;
+  }
+  .history-item .rng{ color: var(--text); font-weight:500; }
+  .history-item .meta{ color: var(--text-dim); }
+  .history-item .tot{ font-weight:600; }
+
+  /* day view */
+  .back-row{ display:flex; align-items:center; gap:10px; margin-bottom: 14px; }
+  .back-btn{
+    display:flex; align-items:center; gap:6px;
+    background:none; border:none; color: var(--accent);
+    font-size: 14px; cursor:pointer; padding:6px 0;
+  }
+  .day-header{ margin-bottom: 14px; }
+  .day-header .weekday{ font-size: 22px; font-weight:600; }
+  .day-header .date{ color: var(--text-dim); font-size: 14px; margin-top: 2px; }
+
+  .total-card{
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-l);
+    padding: 20px;
+    margin-bottom: 16px;
+    box-shadow: var(--shadow);
+  }
+  .total-card .total-label{
+    font-size: 12px; text-transform: uppercase; letter-spacing: .06em;
+    color: var(--text-faint); margin-bottom: 8px;
+  }
+  .total-card .amount{ font-size: 34px; font-weight:600; line-height:1; color: var(--accent-strong); }
+  .total-card .amount-meta{ color: var(--text-dim); font-size: 13px; margin-top: 8px; }
+
+  .section-label{
+    font-size: 12px; text-transform: uppercase; letter-spacing: .06em;
+    color: var(--text-faint); margin: 18px 0 8px;
+  }
+
+  .entry-form{
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-m);
+    padding: 14px;
+    display:flex; flex-direction:column; gap:10px;
+    margin-bottom: 16px;
+  }
+  .entry-form .row{ display:flex; gap:10px; }
+  .field{ display:flex; flex-direction:column; gap:4px; flex:1; }
+  .field label{ font-size: 11px; color: var(--text-dim); }
+  .field input{
+    border: 1px solid var(--border);
+    border-radius: var(--radius-s);
+    padding: 10px 11px;
+    font-size: 15px;
+    background: var(--bg);
+    color: var(--text);
+    font-family: inherit;
+  }
+  .field input.amount-input{ font-family: "IBM Plex Mono", monospace; }
+  .add-btn{
+    background: var(--accent-strong);
+    color: #fff;
+    border:none;
+    border-radius: var(--radius-s);
+    padding: 11px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor:pointer;
+  }
+  .add-btn:active{ opacity:.85; }
+
+  .entries-list{ display:flex; flex-direction:column; gap:6px; }
+  .entry-row{
+    display:flex; align-items:center; gap:10px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-s);
+    padding: 10px 12px;
+  }
+  .entry-row .amt{ font-weight:600; min-width: 92px; }
+  .entry-row .txt{ flex:1; min-width:0; color: var(--text-dim); font-size: 13px; overflow-wrap: anywhere; }
+  .entry-row .time{ color: var(--text-faint); font-size: 11px; flex:none; }
+  .entry-row .del{
+    background:none; border:none; color: var(--danger); cursor:pointer;
+    font-size: 12px; flex:none; padding: 4px 6px;
+  }
+  .empty-note{ color: var(--text-faint); font-size: 13px; padding: 14px 2px; text-align:center; }
+
+  .toast{
+    position: fixed;
+    left: 50%; bottom: 22px;
+    transform: translateX(-50%) translateY(12px);
+    background: var(--accent-strong);
+    color: #fff;
+    padding: 11px 16px;
+    border-radius: 999px;
+    font-size: 13px;
+    box-shadow: var(--shadow);
+    opacity: 0;
+    transition: opacity .18s ease, transform .18s ease;
+    pointer-events:none;
+    max-width: 90vw;
+    text-align:center;
+    z-index: 50;
+  }
+  .toast.show{ opacity: 1; transform: translateX(-50%) translateY(0); }
+
+  .loading-note{ color: var(--text-dim); font-size: 14px; padding: 30px 4px; text-align:center; }
+</style>
+
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Авансы">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#0e6b60">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icon-192.png">
+<link rel="icon" href="icon-192.png">
+</head>
+<body>
+<div class="wrap">
+  <div class="app-header">
+    <div class="app-mark">А</div>
+    <div>
+      <div class="app-title">Авансы</div>
+      <div class="app-sub">Учёт сумм по дням, пн–сб · хранится на этом устройстве</div>
+    </div>
+  </div>
+  <div id="banner-slot"></div>
+  <div id="app"><div class="loading-note">Загрузка…</div></div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+(function(){
+  "use strict";
+
+  // ---------- date helpers (calendar-only arithmetic) ----------
+  function pad2(n){ return n < 10 ? "0" + n : "" + n; }
+  function ymd(y,m,d){ return y + "-" + pad2(m) + "-" + pad2(d); }
+  function ymdToLocalDate(s){ var p = s.split("-").map(Number); return new Date(p[0], p[1]-1, p[2]); }
+  function localDateToYmd(dt){ return ymd(dt.getFullYear(), dt.getMonth()+1, dt.getDate()); }
+  function addDays(s, n){ var dt = ymdToLocalDate(s); dt.setDate(dt.getDate()+n); return localDateToYmd(dt); }
+  function mondayOf(s){
+    var dt = ymdToLocalDate(s);
+    var dow = dt.getDay(); // 0 Sun .. 6 Sat
+    var diff = dow === 0 ? -6 : 1 - dow;
+    dt.setDate(dt.getDate() + diff);
+    return localDateToYmd(dt);
+  }
+  function formatDateRu(s){ var p = s.split("-"); return p[2] + "." + p[1] + "." + p[0]; }
+
+  function moscowParts(){
+    var fmt = new Intl.DateTimeFormat("en-CA", {
+      timeZone: "Europe/Moscow",
+      year: "numeric", month: "2-digit", day: "2-digit",
+      hour: "2-digit", minute: "2-digit", hourCycle: "h23"
+    });
+    var parts = fmt.formatToParts(new Date());
+    var o = {};
+    parts.forEach(function(p){ if (p.type !== "literal") o[p.type] = p.value; });
+    return { y: +o.year, m: +o.month, d: +o.day, h: +o.hour, min: +o.minute };
+  }
+  function todayYMD(){ var p = moscowParts(); return ymd(p.y, p.m, p.d); }
+
+  var WEEKDAYS = ["Понедельник","Вторник","Среда","Четверг","Пятница","Суббота"];
+  var WEEKDAYS_SHORT = ["Пн","Вт","Ср","Чт","Пт","Сб"];
+
+  function formatMoney(n){
+    var num = Number(n) || 0;
+    var isInt = Math.abs(num - Math.round(num)) < 0.001;
+    var opts = isInt ? { maximumFractionDigits: 0 } : { minimumFractionDigits: 2, maximumFractionDigits: 2 };
+    return num.toLocaleString("ru-RU", opts) + " ₽";
+  }
+  function escapeHtml(s){
+    return String(s == null ? "" : s).replace(/[&<>"']/g, function(c){
+      return ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"})[c];
+    });
+  }
+
+  // ---------- storage (on-device, no account or server needed) ----------
+  var STORAGE_KEY = "avansy-entries-v1";
+  var storageAvailable = true;
+  function loadEntries(){
+    try {
+      var raw = localStorage.getItem(STORAGE_KEY);
+      return raw ? JSON.parse(raw) : [];
+    } catch (e){
+      storageAvailable = false;
+      return [];
+    }
+  }
+  function persistEntries(){
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(entries));
+    } catch (e){
+      storageAvailable = false;
+    }
+  }
+
+  // ---------- state ----------
+  var entries = loadEntries(); // {id, date, amount, text, createdAt}
+  var view = "week"; // "week" | "day"
+  var weekStart = mondayOf(todayYMD());
+  var currentDay = null;
+  var historyOpen = false;
+
+  var appEl = document.getElementById("app");
+  var bannerSlot = document.getElementById("banner-slot");
+  var toastEl = document.getElementById("toast");
+  var toastTimer = null;
+
+  function toast(msg){
+    toastEl.textContent = msg;
+    toastEl.classList.add("show");
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(function(){ toastEl.classList.remove("show"); }, 3200);
+  }
+
+  // ---------- data access ----------
+  function entriesForDate(date){
+    return entries.filter(function(e){ return e.date === date; })
+      .sort(function(a,b){ return (a.createdAt||0) - (b.createdAt||0); });
+  }
+  function sumForDate(date){
+    return entriesForDate(date).reduce(function(s,e){ return s + (Number(e.amount)||0); }, 0);
+  }
+  function weekDates(ws){
+    var arr = [];
+    for (var i=0;i<6;i++) arr.push(addDays(ws,i));
+    return arr;
+  }
+  function weekSum(ws){
+    return weekDates(ws).reduce(function(s,d){ return s + sumForDate(d); }, 0);
+  }
+  function weeksWithData(){
+    var map = {};
+    entries.forEach(function(e){
+      var ws = mondayOf(e.date);
+      if (!map[ws]) map[ws] = { weekStart: ws, total: 0, count: 0 };
+      map[ws].total += Number(e.amount) || 0;
+      map[ws].count += 1;
+    });
+    return Object.keys(map).map(function(k){ return map[k]; })
+      .sort(function(a,b){ return b.weekStart.localeCompare(a.weekStart); });
+  }
+
+  function addEntry(date, amount, text){
+    var payload = {
+      id: "e-" + Date.now() + "-" + Math.random().toString(36).slice(2),
+      date: date, amount: amount, text: text || "", createdAt: Date.now()
+    };
+    entries.push(payload);
+    persistEntries();
+    toast(storageAvailable ? "Запись добавлена" : "Запись добавлена (не сохранится после закрытия)");
+    render();
+  }
+  function deleteEntry(id){
+    entries = entries.filter(function(e){ return e.id !== id; });
+    persistEntries();
+    render();
+  }
+
+  // ---------- rendering ----------
+  function captureFormValues(){
+    var a = document.getElementById("amountInput");
+    var t = document.getElementById("textInput");
+    return { amount: a ? a.value : "", text: t ? t.value : "", focus: document.activeElement && document.activeElement.id };
+  }
+  function restoreFormValues(vals){
+    if (!vals) return;
+    var a = document.getElementById("amountInput");
+    var t = document.getElementById("textInput");
+    if (a && vals.amount) a.value = vals.amount;
+    if (t && vals.text) t.value = vals.text;
+    if (vals.focus === "amountInput" && a) a.focus();
+    if (vals.focus === "textInput" && t) t.focus();
+  }
+
+  function dayStatus(date){
+    var t = todayYMD();
+    if (date > t) return { cls: "status-future", label: "—" };
+    var count = entriesForDate(date).length;
+    if (count === 0) return { cls: "status-empty", label: "нет записей" };
+    return { cls: "", label: "" };
+  }
+
+  function renderWeekView(){
+    var t = todayYMD();
+    var dates = weekDates(weekStart);
+    var satur = dates[5];
+    var rangeLabel = formatDateRu(weekStart) + " – " + formatDateRu(satur);
+
+    var cards = dates.map(function(date, i){
+      var sum = sumForDate(date);
+      var count = entriesForDate(date).length;
+      var isToday = date === t;
+      var st = dayStatus(date);
+      return (
+        '<button type="button" class="day-card' + (isToday ? " is-today" : "") + '" data-action="open-day" data-date="' + date + '">' +
+          '<div class="day-date-block"><div class="dow">' + WEEKDAYS_SHORT[i] + '</div><div class="num mono">' + date.split("-")[2] + '</div></div>' +
+          '<div class="day-mid"><div class="full-date mono">' + formatDateRu(date) + '</div><div class="count">' + count + (count === 1 ? " запись" : " записей") + '</div></div>' +
+          '<div class="day-right"><div class="sum mono">' + (count ? formatMoney(sum) : "—") + '</div><div class="status ' + st.cls + '">' + st.label + '</div></div>' +
+        '</button>'
+      );
+    }).join("");
+
+    var histList = weeksWithData();
+    var histHtml = "";
+    if (historyOpen){
+      if (histList.length === 0){
+        histHtml = '<div class="empty-note">Пока нет данных о прошлых неделях.</div>';
+      } else {
+        histHtml = '<div class="history-list">' + histList.map(function(w){
+          var sat = addDays(w.weekStart, 5);
+          return (
+            '<div class="history-item" data-action="goto-week" data-week="' + w.weekStart + '">' +
+              '<div><div class="rng">' + formatDateRu(w.weekStart) + " – " + formatDateRu(sat) + '</div>' +
+              '<div class="meta">' + w.count + (w.count === 1 ? " запись" : " записей") + '</div></div>' +
+              '<div class="tot mono">' + formatMoney(w.total) + '</div>' +
+            '</div>'
+          );
+        }).join("") + '</div>';
+      }
+    }
+
+    appEl.innerHTML =
+      '<div class="week-nav">' +
+        '<button type="button" class="nav-btn" data-action="prev-week" aria-label="Предыдущая неделя">‹</button>' +
+        '<div class="week-range"><div class="range mono">' + rangeLabel + '</div>' +
+          (weekStart !== mondayOf(t) ? '<div class="today-link" data-action="today">К текущей неделе</div>' : '') +
+        '</div>' +
+        '<button type="button" class="nav-btn" data-action="next-week" aria-label="Следующая неделя">›</button>' +
+      '</div>' +
+      '<div class="week-total"><div class="label">Итого за неделю</div><div class="value mono">' + formatMoney(weekSum(weekStart)) + '</div></div>' +
+      '<div class="day-list">' + cards + '</div>' +
+      '<button type="button" class="history-toggle" data-action="toggle-history">' + (historyOpen ? "Скрыть прошлые недели" : "Показать прошлые недели") + '</button>' +
+      histHtml;
+  }
+
+  function renderDayView(date){
+    var dow = (ymdToLocalDate(date).getDay() + 6) % 7; // 0=Mon..6=Sun
+    var weekdayName = WEEKDAYS[dow] || "";
+    var sum = sumForDate(date);
+    var count = entriesForDate(date).length;
+    var list = entriesForDate(date);
+
+    var rowsHtml = list.length
+      ? list.map(function(e){
+          var d = new Date(e.createdAt || Date.now());
+          var timeLbl = pad2(d.getHours()) + ":" + pad2(d.getMinutes());
+          return (
+            '<div class="entry-row">' +
+              '<div class="amt mono">' + formatMoney(e.amount) + '</div>' +
+              '<div class="txt">' + (e.text ? escapeHtml(e.text) : '<span style="color:var(--text-faint)">без комментария</span>') + '</div>' +
+              '<div class="time mono">' + timeLbl + '</div>' +
+              '<button type="button" class="del" data-action="delete-entry" data-id="' + e.id + '">Удалить</button>' +
+            '</div>'
+          );
+        }).join("")
+      : '<div class="empty-note">Записей пока нет.</div>';
+
+    appEl.innerHTML =
+      '<div class="back-row"><button type="button" class="back-btn" data-action="back-to-week">‹ К неделе</button></div>' +
+      '<div class="day-header"><div class="weekday">' + weekdayName + '</div><div class="date mono">' + formatDateRu(date) + '</div></div>' +
+      '<div class="total-card">' +
+        '<div class="total-label">Итог дня</div>' +
+        '<div class="amount mono" id="dayAmount">' + formatMoney(sum) + '</div>' +
+        '<div class="amount-meta">' + count + (count === 1 ? " запись" : " записей") + '</div>' +
+      '</div>' +
+      '<div class="section-label">Добавить запись</div>' +
+      '<form class="entry-form" id="addEntryForm">' +
+        '<div class="row">' +
+          '<div class="field"><label for="amountInput">Сумма, ₽</label><input class="amount-input" id="amountInput" name="amount" type="number" inputmode="decimal" step="0.01" min="0" placeholder="5000" required></div>' +
+        '</div>' +
+        '<div class="field"><input id="textInput" name="text" type="text" placeholder="Имя" maxlength="200"></div>' +
+        '<button type="submit" class="add-btn">Добавить</button>' +
+      '</form>' +
+      '<div class="section-label">Записи за день</div>' +
+      '<div class="entries-list">' + rowsHtml + '</div>';
+  }
+
+  function render(){
+    var vals = view === "day" ? captureFormValues() : null;
+    if (view === "week") renderWeekView();
+    else renderDayView(currentDay);
+    if (vals) restoreFormValues(vals);
+  }
+
+  // ---------- light DOM-only refresh for the 15:00 / midnight rollover ----------
+  function tick(){
+    // A full render is cheap for this data size and safest against edge cases
+    // (midnight rollover changing "today", week highlighting, etc).
+    render();
+  }
+
+  // ---------- events (delegated so re-renders don't lose listeners) ----------
+  appEl.addEventListener("click", function(e){
+    var el = e.target.closest("[data-action]");
+    if (!el) return;
+    var action = el.dataset.action;
+    if (action === "open-day"){
+      currentDay = el.dataset.date;
+      view = "day";
+      render();
+    } else if (action === "back-to-week"){
+      view = "week";
+      render();
+    } else if (action === "prev-week"){
+      weekStart = addDays(weekStart, -7);
+      render();
+    } else if (action === "next-week"){
+      weekStart = addDays(weekStart, 7);
+      render();
+    } else if (action === "today"){
+      weekStart = mondayOf(todayYMD());
+      render();
+    } else if (action === "toggle-history"){
+      historyOpen = !historyOpen;
+      render();
+    } else if (action === "goto-week"){
+      weekStart = el.dataset.week;
+      historyOpen = false;
+      view = "week";
+      render();
+    } else if (action === "delete-entry"){
+      deleteEntry(el.dataset.id);
+    }
+  });
+
+  appEl.addEventListener("submit", function(e){
+    if (e.target && e.target.id === "addEntryForm"){
+      e.preventDefault();
+      var amountInput = document.getElementById("amountInput");
+      var textInput = document.getElementById("textInput");
+      var amount = parseFloat(amountInput.value);
+      if (!amount || amount <= 0){
+        toast("Укажите сумму больше нуля");
+        return;
+      }
+      var text = textInput.value.trim();
+      amountInput.value = "";
+      textInput.value = "";
+      addEntry(currentDay, amount, text);
+      var freshAmount = document.getElementById("amountInput");
+      if (freshAmount) freshAmount.focus();
+    }
+  });
+
+  // ---------- startup ----------
+  function showBanner(html){
+    bannerSlot.innerHTML = '<div class="banner">' + html + '</div>';
+  }
+
+  render();
+
+  if (!storageAvailable){
+    showBanner("Не удалось получить доступ к памяти браузера (например, включён приватный режим). Записи будут видны только до закрытия страницы.");
+  }
+
+  setInterval(tick, 30000);
+})();
+</script>
+
+<script>
+if ("serviceWorker" in navigator) {
+  window.addEventListener("load", function(){
+    navigator.serviceWorker.register("sw.js").catch(function(){});
+  });
+}
+</script>
+</body>
+</html>
