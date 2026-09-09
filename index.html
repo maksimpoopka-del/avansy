@@ -157,15 +157,16 @@
   .status-future{ color: var(--text-faint); }
   .status-empty{ color: var(--text-faint); }
 
+  .bottom-actions{ display:flex; gap:8px; margin-bottom: 4px; }
   .history-toggle{
     display:flex; align-items:center; justify-content:center; gap:6px;
-    width:100%;
-    background:none; border: none;
+    flex:1;
+    background:none; border: 1px solid var(--border);
+    border-radius: var(--radius-s);
     color: var(--text-dim);
     font-size: 13px;
-    padding: 8px;
+    padding: 10px;
     cursor:pointer;
-    margin-bottom: 4px;
   }
   .history-list{ display:flex; flex-direction:column; gap:6px; margin-bottom: 18px; }
   .history-item{
@@ -179,6 +180,38 @@
   .history-item .rng{ color: var(--text); font-weight:500; }
   .history-item .meta{ color: var(--text-dim); }
   .history-item .tot{ font-weight:600; }
+
+  /* employee salary summary (week view) */
+  .emp-summary-list{ display:flex; flex-direction:column; gap:6px; margin-bottom: 16px; }
+  .emp-summary-row{
+    display:flex; justify-content:space-between; align-items:center; gap:10px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-s);
+    padding: 10px 12px;
+    font-size: 13px;
+  }
+  .emp-summary-name{ font-weight:600; min-width:0; overflow-wrap:anywhere; }
+  .emp-summary-nums{ display:flex; flex-direction:column; align-items:flex-end; gap:2px; flex:none; text-align:right; }
+  .emp-summary-adv{ color: var(--text-dim); font-size:12px; }
+  .emp-summary-rest{ font-weight:600; color: var(--accent-strong); }
+  .emp-summary-rest.over{ color: var(--danger); }
+
+  /* employees management view */
+  .employees-list{ display:flex; flex-direction:column; gap:6px; }
+  .employee-row{
+    display:flex; align-items:center; justify-content:space-between; gap:10px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-s);
+    padding: 10px 12px;
+  }
+  .employee-name{ font-weight:600; font-size: 14px; }
+  .employee-salary{ color: var(--text-dim); font-size: 12px; margin-top:2px; }
+  .employee-row .del{
+    background:none; border:none; color: var(--danger); cursor:pointer;
+    font-size: 12px; flex:none; padding: 4px 6px;
+  }
 
   /* day view */
   .back-row{ display:flex; align-items:center; gap:10px; margin-bottom: 14px; }
@@ -254,6 +287,9 @@
   }
   .entry-row .amt{ font-weight:600; min-width: 92px; }
   .entry-row .txt{ flex:1; min-width:0; color: var(--text-dim); font-size: 13px; overflow-wrap: anywhere; }
+  .entry-emp-name{ display:block; color: var(--text); font-weight:600; font-size: 13px; }
+  .entry-emp-rest{ display:block; font-size: 11px; color: var(--text-dim); margin-top:1px; }
+  .entry-emp-rest.over{ color: var(--danger); }
   .entry-row .time{ color: var(--text-faint); font-size: 11px; flex:none; }
   .entry-row .del{
     background:none; border:none; color: var(--danger); cursor:pointer;
@@ -374,9 +410,27 @@
     }
   }
 
+  var EMPLOYEES_KEY = "avansy-employees-v1";
+  function loadEmployees(){
+    try {
+      var raw = localStorage.getItem(EMPLOYEES_KEY);
+      return raw ? JSON.parse(raw) : [];
+    } catch (e){
+      return [];
+    }
+  }
+  function persistEmployees(){
+    try {
+      localStorage.setItem(EMPLOYEES_KEY, JSON.stringify(employees));
+    } catch (e){
+      storageAvailable = false;
+    }
+  }
+
   // ---------- state ----------
   var entries = loadEntries(); // {id, date, amount, text, createdAt}
-  var view = "week"; // "week" | "day"
+  var employees = loadEmployees(); // {id, name, salary}
+  var view = "week"; // "week" | "day" | "employees"
   var weekStart = mondayOf(todayYMD());
   var currentDay = null;
   var historyOpen = false;
@@ -421,6 +475,29 @@
       .sort(function(a,b){ return b.weekStart.localeCompare(a.weekStart); });
   }
 
+  // ---------- employees & salary/advance math ----------
+  function normName(s){ return (s || "").trim().toLowerCase(); }
+  function findEmployeeByName(name){
+    var n = normName(name);
+    if (!n) return null;
+    for (var i=0;i<employees.length;i++){
+      if (normName(employees[i].name) === n) return employees[i];
+    }
+    return null;
+  }
+  // This employee's entries within one week, oldest first (for a running balance).
+  function employeeWeekEntries(ws, empId){
+    var dates = weekDates(ws);
+    return entries.filter(function(e){
+      if (dates.indexOf(e.date) === -1) return false;
+      var emp = findEmployeeByName(e.text);
+      return emp && emp.id === empId;
+    }).sort(function(a,b){ return (a.createdAt||0) - (b.createdAt||0); });
+  }
+  function employeeWeekAdvanceTotal(ws, empId){
+    return employeeWeekEntries(ws, empId).reduce(function(s,e){ return s + (Number(e.amount)||0); }, 0);
+  }
+
   function addEntry(date, amount, text){
     var payload = {
       id: "e-" + Date.now() + "-" + Math.random().toString(36).slice(2),
@@ -437,20 +514,41 @@
     render();
   }
 
+  function addEmployee(name, salary){
+    employees.push({
+      id: "emp-" + Date.now() + "-" + Math.random().toString(36).slice(2),
+      name: name, salary: salary
+    });
+    persistEmployees();
+    toast("Сотрудник добавлен");
+    render();
+  }
+  function deleteEmployee(id){
+    employees = employees.filter(function(e){ return e.id !== id; });
+    persistEmployees();
+    render();
+  }
+
   // ---------- rendering ----------
+  var TRACKED_FIELD_IDS = ["amountInput", "textInput", "empNameInput", "empSalaryInput"];
   function captureFormValues(){
-    var a = document.getElementById("amountInput");
-    var t = document.getElementById("textInput");
-    return { amount: a ? a.value : "", text: t ? t.value : "", focus: document.activeElement && document.activeElement.id };
+    var vals = { focus: document.activeElement && document.activeElement.id };
+    TRACKED_FIELD_IDS.forEach(function(id){
+      var el = document.getElementById(id);
+      if (el) vals[id] = el.value;
+    });
+    return vals;
   }
   function restoreFormValues(vals){
     if (!vals) return;
-    var a = document.getElementById("amountInput");
-    var t = document.getElementById("textInput");
-    if (a && vals.amount) a.value = vals.amount;
-    if (t && vals.text) t.value = vals.text;
-    if (vals.focus === "amountInput" && a) a.focus();
-    if (vals.focus === "textInput" && t) t.focus();
+    TRACKED_FIELD_IDS.forEach(function(id){
+      var el = document.getElementById(id);
+      if (el && vals[id]) el.value = vals[id];
+    });
+    if (vals.focus){
+      var f = document.getElementById(vals.focus);
+      if (f) f.focus();
+    }
   }
 
   function dayStatus(date){
@@ -500,6 +598,25 @@
       }
     }
 
+    var empSummaryHtml = "";
+    if (employees.length){
+      var empRows = employees.map(function(emp){
+        var total = employeeWeekAdvanceTotal(weekStart, emp.id);
+        var remaining = (Number(emp.salary) || 0) - total;
+        var over = remaining < 0;
+        return (
+          '<div class="emp-summary-row">' +
+            '<div class="emp-summary-name">' + escapeHtml(emp.name) + '</div>' +
+            '<div class="emp-summary-nums">' +
+              '<span class="emp-summary-adv mono">аванс: ' + formatMoney(total) + '</span>' +
+              '<span class="emp-summary-rest mono' + (over ? " over" : "") + '">к выплате: ' + formatMoney(remaining) + '</span>' +
+            '</div>' +
+          '</div>'
+        );
+      }).join("");
+      empSummaryHtml = '<div class="section-label">Зарплаты за неделю</div><div class="emp-summary-list">' + empRows + '</div>';
+    }
+
     appEl.innerHTML =
       '<div class="week-nav">' +
         '<button type="button" class="nav-btn" data-action="prev-week" aria-label="Предыдущая неделя">‹</button>' +
@@ -509,8 +626,12 @@
         '<button type="button" class="nav-btn" data-action="next-week" aria-label="Следующая неделя">›</button>' +
       '</div>' +
       '<div class="week-total"><div class="label">Итого за неделю</div><div class="value mono">' + formatMoney(weekSum(weekStart)) + '</div></div>' +
+      empSummaryHtml +
       '<div class="day-list">' + cards + '</div>' +
-      '<button type="button" class="history-toggle" data-action="toggle-history">' + (historyOpen ? "Скрыть прошлые недели" : "Показать прошлые недели") + '</button>' +
+      '<div class="bottom-actions">' +
+        '<button type="button" class="history-toggle" data-action="open-employees">Сотрудники</button>' +
+        '<button type="button" class="history-toggle" data-action="toggle-history">' + (historyOpen ? "Скрыть прошлые недели" : "Показать прошлые недели") + '</button>' +
+      '</div>' +
       histHtml;
   }
 
@@ -521,20 +642,41 @@
     var count = entriesForDate(date).length;
     var list = entriesForDate(date);
 
+    var ws = mondayOf(date);
     var rowsHtml = list.length
       ? list.map(function(e){
           var d = new Date(e.createdAt || Date.now());
           var timeLbl = pad2(d.getHours()) + ":" + pad2(d.getMinutes());
+          var emp = findEmployeeByName(e.text);
+          var txtHtml;
+          if (emp){
+            var weekEntries = employeeWeekEntries(ws, emp.id);
+            var cumulative = 0;
+            for (var i=0;i<weekEntries.length;i++){
+              cumulative += Number(weekEntries[i].amount) || 0;
+              if (weekEntries[i].id === e.id) break;
+            }
+            var remaining = (Number(emp.salary) || 0) - cumulative;
+            txtHtml =
+              '<span class="entry-emp-name">' + escapeHtml(emp.name) + '</span>' +
+              '<span class="entry-emp-rest mono' + (remaining < 0 ? " over" : "") + '">остаток ' + formatMoney(remaining) + '</span>';
+          } else {
+            txtHtml = e.text ? escapeHtml(e.text) : '<span style="color:var(--text-faint)">без комментария</span>';
+          }
           return (
             '<div class="entry-row">' +
               '<div class="amt mono">' + formatMoney(e.amount) + '</div>' +
-              '<div class="txt">' + (e.text ? escapeHtml(e.text) : '<span style="color:var(--text-faint)">без комментария</span>') + '</div>' +
+              '<div class="txt">' + txtHtml + '</div>' +
               '<div class="time mono">' + timeLbl + '</div>' +
               '<button type="button" class="del" data-action="delete-entry" data-id="' + e.id + '">Удалить</button>' +
             '</div>'
           );
         }).join("")
       : '<div class="empty-note">Записей пока нет.</div>';
+
+    var employeeOptions = employees.map(function(emp){
+      return '<option value="' + escapeHtml(emp.name) + '">';
+    }).join("");
 
     appEl.innerHTML =
       '<div class="back-row"><button type="button" class="back-btn" data-action="back-to-week">‹ К неделе</button></div>' +
@@ -549,16 +691,46 @@
         '<div class="row">' +
           '<div class="field"><label for="amountInput">Сумма, ₽</label><input class="amount-input" id="amountInput" name="amount" type="number" inputmode="decimal" step="0.01" min="0" placeholder="5000" required></div>' +
         '</div>' +
-        '<div class="field"><input id="textInput" name="text" type="text" placeholder="Имя" maxlength="200"></div>' +
+        '<div class="field"><input id="textInput" name="text" type="text" placeholder="Имя" maxlength="200" list="employeeNames" autocomplete="off"></div>' +
+        '<datalist id="employeeNames">' + employeeOptions + '</datalist>' +
         '<button type="submit" class="add-btn">Добавить</button>' +
       '</form>' +
       '<div class="section-label">Записи за день</div>' +
       '<div class="entries-list">' + rowsHtml + '</div>';
   }
 
+  function renderEmployeesView(){
+    var rows = employees.length
+      ? employees.map(function(emp){
+          return (
+            '<div class="employee-row">' +
+              '<div>' +
+                '<div class="employee-name">' + escapeHtml(emp.name) + '</div>' +
+                '<div class="employee-salary mono">Оклад в неделю: ' + formatMoney(emp.salary) + '</div>' +
+              '</div>' +
+              '<button type="button" class="del" data-action="delete-employee" data-id="' + emp.id + '">Удалить</button>' +
+            '</div>'
+          );
+        }).join("")
+      : '<div class="empty-note">Пока нет ни одного сотрудника.</div>';
+
+    appEl.innerHTML =
+      '<div class="back-row"><button type="button" class="back-btn" data-action="back-to-week">‹ К неделе</button></div>' +
+      '<div class="day-header"><div class="weekday">Сотрудники</div><div class="date mono">имя и оклад в неделю</div></div>' +
+      '<div class="section-label">Добавить сотрудника</div>' +
+      '<form class="entry-form" id="addEmployeeForm">' +
+        '<div class="field"><input id="empNameInput" name="name" type="text" placeholder="Имя" maxlength="60" required></div>' +
+        '<div class="field"><input id="empSalaryInput" class="amount-input" name="salary" type="number" inputmode="decimal" step="0.01" min="0" placeholder="Оклад в неделю, ₽" required></div>' +
+        '<button type="submit" class="add-btn">Добавить сотрудника</button>' +
+      '</form>' +
+      '<div class="section-label">Список</div>' +
+      '<div class="employees-list">' + rows + '</div>';
+  }
+
   function render(){
-    var vals = view === "day" ? captureFormValues() : null;
+    var vals = (view === "day" || view === "employees") ? captureFormValues() : null;
     if (view === "week") renderWeekView();
+    else if (view === "employees") renderEmployeesView();
     else renderDayView(currentDay);
     if (vals) restoreFormValues(vals);
   }
@@ -601,6 +773,11 @@
       render();
     } else if (action === "delete-entry"){
       deleteEntry(el.dataset.id);
+    } else if (action === "open-employees"){
+      view = "employees";
+      render();
+    } else if (action === "delete-employee"){
+      deleteEmployee(el.dataset.id);
     }
   });
 
@@ -620,6 +797,29 @@
       addEntry(currentDay, amount, text);
       var freshAmount = document.getElementById("amountInput");
       if (freshAmount) freshAmount.focus();
+    } else if (e.target && e.target.id === "addEmployeeForm"){
+      e.preventDefault();
+      var nameInput = document.getElementById("empNameInput");
+      var salaryInput = document.getElementById("empSalaryInput");
+      var name = nameInput.value.trim();
+      var salary = parseFloat(salaryInput.value);
+      if (!name){
+        toast("Введите имя сотрудника");
+        return;
+      }
+      if (!salary || salary <= 0){
+        toast("Укажите оклад больше нуля");
+        return;
+      }
+      if (findEmployeeByName(name)){
+        toast("Сотрудник с таким именем уже есть");
+        return;
+      }
+      nameInput.value = "";
+      salaryInput.value = "";
+      addEmployee(name, salary);
+      var freshName = document.getElementById("empNameInput");
+      if (freshName) freshName.focus();
     }
   });
 
