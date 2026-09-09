@@ -2,7 +2,13 @@
 <html lang="ru">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Авансы">
+<meta name="theme-color" content="#0e6b60">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icon-192.png">
 <title>Авансы</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=Work+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
 <style>
@@ -212,6 +218,20 @@
     background:none; border:none; color: var(--danger); cursor:pointer;
     font-size: 12px; flex:none; padding: 4px 6px;
   }
+  .employee-row-actions{ display:flex; gap:4px; flex:none; align-items:center; }
+  .employee-row .edit-link{
+    background:none; border:none; color: var(--accent-strong); cursor:pointer;
+    font-size: 12px; flex:none; padding: 4px 6px; font-weight:600;
+  }
+  .employee-row.editing{ flex-direction:column; align-items:stretch; gap:10px; }
+  .edit-salary-row{ display:flex; gap:8px; align-items:center; }
+  .edit-salary-row input{ flex:1; }
+  .edit-salary-actions{ display:flex; gap:8px; }
+  .edit-salary-actions .add-btn{ flex:1; padding:9px; font-size:13px; }
+  .edit-salary-actions .cancel-btn{
+    flex:none; background:none; border:1px solid var(--border); color: var(--text-dim);
+    border-radius: var(--radius-s); padding:9px 14px; font-size:13px; cursor:pointer; font-family: inherit;
+  }
 
   /* day view */
   .back-row{ display:flex; align-items:center; gap:10px; margin-bottom: 14px; }
@@ -255,7 +275,7 @@
   .entry-form .row{ display:flex; gap:10px; }
   .field{ display:flex; flex-direction:column; gap:4px; flex:1; }
   .field label{ font-size: 11px; color: var(--text-dim); }
-  .field input{
+  .field input, .field select{
     border: 1px solid var(--border);
     border-radius: var(--radius-s);
     padding: 10px 11px;
@@ -264,6 +284,7 @@
     color: var(--text);
     font-family: inherit;
   }
+  .field select{ appearance: none; -webkit-appearance: none; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20' fill='%235c6f69'%3E%3Cpath d='M5.5 7.5l4.5 4.5 4.5-4.5' stroke='%235c6f69' stroke-width='1.6' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E"); background-repeat:no-repeat; background-position: right 11px center; padding-right: 34px; }
   .field input.amount-input{ font-family: "IBM Plex Mono", monospace; }
   .add-btn{
     background: var(--accent-strong);
@@ -318,15 +339,6 @@
 
   .loading-note{ color: var(--text-dim); font-size: 14px; padding: 30px 4px; text-align:center; }
 </style>
-
-<meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="default">
-<meta name="apple-mobile-web-app-title" content="Авансы">
-<meta name="mobile-web-app-capable" content="yes">
-<meta name="theme-color" content="#0e6b60">
-<link rel="manifest" href="manifest.json">
-<link rel="apple-touch-icon" href="icon-192.png">
-<link rel="icon" href="icon-192.png">
 </head>
 <body>
 <div class="wrap">
@@ -334,7 +346,7 @@
     <div class="app-mark">А</div>
     <div>
       <div class="app-title">Авансы</div>
-      <div class="app-sub">Учёт сумм по дням, пн–сб · хранится на этом устройстве</div>
+      <div class="app-sub">Учёт сумм по дням, пн–вс · хранится на этом устройстве</div>
     </div>
   </div>
   <div id="banner-slot"></div>
@@ -375,8 +387,8 @@
   }
   function todayYMD(){ var p = moscowParts(); return ymd(p.y, p.m, p.d); }
 
-  var WEEKDAYS = ["Понедельник","Вторник","Среда","Четверг","Пятница","Суббота"];
-  var WEEKDAYS_SHORT = ["Пн","Вт","Ср","Чт","Пт","Сб"];
+  var WEEKDAYS = ["Понедельник","Вторник","Среда","Четверг","Пятница","Суббота","Воскресенье"];
+  var WEEKDAYS_SHORT = ["Пн","Вт","Ср","Чт","Пт","Сб","Вс"];
 
   function formatMoney(n){
     var num = Number(n) || 0;
@@ -431,6 +443,7 @@
   var entries = loadEntries(); // {id, date, amount, text, createdAt}
   var employees = loadEmployees(); // {id, name, salary}
   var view = "week"; // "week" | "day" | "employees"
+  var editingEmployeeId = null;
   var weekStart = mondayOf(todayYMD());
   var currentDay = null;
   var historyOpen = false;
@@ -457,7 +470,7 @@
   }
   function weekDates(ws){
     var arr = [];
-    for (var i=0;i<6;i++) arr.push(addDays(ws,i));
+    for (var i=0;i<7;i++) arr.push(addDays(ws,i));
     return arr;
   }
   function weekSum(ws){
@@ -528,9 +541,18 @@
     persistEmployees();
     render();
   }
+  function updateEmployeeSalary(id, salary){
+    for (var i=0;i<employees.length;i++){
+      if (employees[i].id === id){ employees[i].salary = salary; break; }
+    }
+    persistEmployees();
+    editingEmployeeId = null;
+    toast("Зарплата обновлена");
+    render();
+  }
 
   // ---------- rendering ----------
-  var TRACKED_FIELD_IDS = ["amountInput", "textInput", "empNameInput", "empSalaryInput"];
+  var TRACKED_FIELD_IDS = ["amountInput", "textInput", "employeeSelect", "empNameInput", "empSalaryInput", "editSalaryInput"];
   function captureFormValues(){
     var vals = { focus: document.activeElement && document.activeElement.id };
     TRACKED_FIELD_IDS.forEach(function(id){
@@ -562,8 +584,8 @@
   function renderWeekView(){
     var t = todayYMD();
     var dates = weekDates(weekStart);
-    var satur = dates[5];
-    var rangeLabel = formatDateRu(weekStart) + " – " + formatDateRu(satur);
+    var weekEnd = dates[dates.length - 1];
+    var rangeLabel = formatDateRu(weekStart) + " – " + formatDateRu(weekEnd);
 
     var cards = dates.map(function(date, i){
       var sum = sumForDate(date);
@@ -586,35 +608,16 @@
         histHtml = '<div class="empty-note">Пока нет данных о прошлых неделях.</div>';
       } else {
         histHtml = '<div class="history-list">' + histList.map(function(w){
-          var sat = addDays(w.weekStart, 5);
+          var weekEnd = addDays(w.weekStart, 6);
           return (
             '<div class="history-item" data-action="goto-week" data-week="' + w.weekStart + '">' +
-              '<div><div class="rng">' + formatDateRu(w.weekStart) + " – " + formatDateRu(sat) + '</div>' +
+              '<div><div class="rng">' + formatDateRu(w.weekStart) + " – " + formatDateRu(weekEnd) + '</div>' +
               '<div class="meta">' + w.count + (w.count === 1 ? " запись" : " записей") + '</div></div>' +
               '<div class="tot mono">' + formatMoney(w.total) + '</div>' +
             '</div>'
           );
         }).join("") + '</div>';
       }
-    }
-
-    var empSummaryHtml = "";
-    if (employees.length){
-      var empRows = employees.map(function(emp){
-        var total = employeeWeekAdvanceTotal(weekStart, emp.id);
-        var remaining = (Number(emp.salary) || 0) - total;
-        var over = remaining < 0;
-        return (
-          '<div class="emp-summary-row">' +
-            '<div class="emp-summary-name">' + escapeHtml(emp.name) + '</div>' +
-            '<div class="emp-summary-nums">' +
-              '<span class="emp-summary-adv mono">аванс: ' + formatMoney(total) + '</span>' +
-              '<span class="emp-summary-rest mono' + (over ? " over" : "") + '">к выплате: ' + formatMoney(remaining) + '</span>' +
-            '</div>' +
-          '</div>'
-        );
-      }).join("");
-      empSummaryHtml = '<div class="section-label">Зарплаты за неделю</div><div class="emp-summary-list">' + empRows + '</div>';
     }
 
     appEl.innerHTML =
@@ -626,7 +629,6 @@
         '<button type="button" class="nav-btn" data-action="next-week" aria-label="Следующая неделя">›</button>' +
       '</div>' +
       '<div class="week-total"><div class="label">Итого за неделю</div><div class="value mono">' + formatMoney(weekSum(weekStart)) + '</div></div>' +
-      empSummaryHtml +
       '<div class="day-list">' + cards + '</div>' +
       '<div class="bottom-actions">' +
         '<button type="button" class="history-toggle" data-action="open-employees">Сотрудники</button>' +
@@ -675,8 +677,27 @@
       : '<div class="empty-note">Записей пока нет.</div>';
 
     var employeeOptions = employees.map(function(emp){
-      return '<option value="' + escapeHtml(emp.name) + '">';
+      return '<option value="' + escapeHtml(emp.name) + '">' + escapeHtml(emp.name) + '</option>';
     }).join("");
+
+    var empSummaryHtml = "";
+    if (dow === 5 && employees.length){
+      var empRows = employees.map(function(emp){
+        var total = employeeWeekAdvanceTotal(ws, emp.id);
+        var remaining = (Number(emp.salary) || 0) - total;
+        var over = remaining < 0;
+        return (
+          '<div class="emp-summary-row">' +
+            '<div class="emp-summary-name">' + escapeHtml(emp.name) + '</div>' +
+            '<div class="emp-summary-nums">' +
+              '<span class="emp-summary-adv mono">аванс: ' + formatMoney(total) + '</span>' +
+              '<span class="emp-summary-rest mono' + (over ? " over" : "") + '">к выплате: ' + formatMoney(remaining) + '</span>' +
+            '</div>' +
+          '</div>'
+        );
+      }).join("");
+      empSummaryHtml = '<div class="section-label">Зарплата к выплате за неделю</div><div class="emp-summary-list">' + empRows + '</div>';
+    }
 
     appEl.innerHTML =
       '<div class="back-row"><button type="button" class="back-btn" data-action="back-to-week">‹ К неделе</button></div>' +
@@ -686,13 +707,20 @@
         '<div class="amount mono" id="dayAmount">' + formatMoney(sum) + '</div>' +
         '<div class="amount-meta">' + count + (count === 1 ? " запись" : " записей") + '</div>' +
       '</div>' +
+      empSummaryHtml +
       '<div class="section-label">Добавить запись</div>' +
       '<form class="entry-form" id="addEntryForm">' +
-        '<div class="row">' +
-          '<div class="field"><label for="amountInput">Сумма, ₽</label><input class="amount-input" id="amountInput" name="amount" type="number" inputmode="decimal" step="0.01" min="0" placeholder="5000" required></div>' +
+        '<div class="field">' +
+          '<label for="employeeSelect">Сотрудник</label>' +
+          '<select id="employeeSelect">' +
+            '<option value="">Без сотрудника (просто запись)</option>' +
+            employeeOptions +
+          '</select>' +
         '</div>' +
-        '<div class="field"><input id="textInput" name="text" type="text" placeholder="Имя" maxlength="200" list="employeeNames" autocomplete="off"></div>' +
-        '<datalist id="employeeNames">' + employeeOptions + '</datalist>' +
+        '<div class="row">' +
+          '<div class="field"><label for="amountInput" id="amountLabel">Сумма, ₽</label><input class="amount-input" id="amountInput" name="amount" type="number" inputmode="decimal" step="0.01" min="0" placeholder="5000" required></div>' +
+        '</div>' +
+        '<div class="field" id="freeTextField"><input id="textInput" name="text" type="text" placeholder="Комментарий (необязательно)" maxlength="200"></div>' +
         '<button type="submit" class="add-btn">Добавить</button>' +
       '</form>' +
       '<div class="section-label">Записи за день</div>' +
@@ -702,13 +730,30 @@
   function renderEmployeesView(){
     var rows = employees.length
       ? employees.map(function(emp){
+          if (editingEmployeeId === emp.id){
+            return (
+              '<div class="employee-row editing">' +
+                '<div class="employee-name">' + escapeHtml(emp.name) + '</div>' +
+                '<form class="edit-salary-row" id="editSalaryForm" data-id="' + emp.id + '">' +
+                  '<input id="editSalaryInput" class="amount-input" type="number" inputmode="decimal" step="0.01" min="0" value="' + emp.salary + '" required>' +
+                '</form>' +
+                '<div class="edit-salary-actions">' +
+                  '<button type="submit" form="editSalaryForm" class="add-btn">Сохранить</button>' +
+                  '<button type="button" class="cancel-btn" data-action="cancel-edit-employee">Отмена</button>' +
+                '</div>' +
+              '</div>'
+            );
+          }
           return (
             '<div class="employee-row">' +
               '<div>' +
                 '<div class="employee-name">' + escapeHtml(emp.name) + '</div>' +
-                '<div class="employee-salary mono">Оклад в неделю: ' + formatMoney(emp.salary) + '</div>' +
+                '<div class="employee-salary mono">Зарплата в неделю: ' + formatMoney(emp.salary) + '</div>' +
               '</div>' +
-              '<button type="button" class="del" data-action="delete-employee" data-id="' + emp.id + '">Удалить</button>' +
+              '<div class="employee-row-actions">' +
+                '<button type="button" class="edit-link" data-action="edit-employee-salary" data-id="' + emp.id + '">Изменить</button>' +
+                '<button type="button" class="del" data-action="delete-employee" data-id="' + emp.id + '">Удалить</button>' +
+              '</div>' +
             '</div>'
           );
         }).join("")
@@ -716,15 +761,25 @@
 
     appEl.innerHTML =
       '<div class="back-row"><button type="button" class="back-btn" data-action="back-to-week">‹ К неделе</button></div>' +
-      '<div class="day-header"><div class="weekday">Сотрудники</div><div class="date mono">имя и оклад в неделю</div></div>' +
+      '<div class="day-header"><div class="weekday">Сотрудники</div><div class="date mono">имя и зарплата в неделю</div></div>' +
       '<div class="section-label">Добавить сотрудника</div>' +
       '<form class="entry-form" id="addEmployeeForm">' +
         '<div class="field"><input id="empNameInput" name="name" type="text" placeholder="Имя" maxlength="60" required></div>' +
-        '<div class="field"><input id="empSalaryInput" class="amount-input" name="salary" type="number" inputmode="decimal" step="0.01" min="0" placeholder="Оклад в неделю, ₽" required></div>' +
+        '<div class="field"><input id="empSalaryInput" class="amount-input" name="salary" type="number" inputmode="decimal" step="0.01" min="0" placeholder="Зарплата в неделю, ₽" required></div>' +
         '<button type="submit" class="add-btn">Добавить сотрудника</button>' +
       '</form>' +
       '<div class="section-label">Список</div>' +
       '<div class="employees-list">' + rows + '</div>';
+  }
+
+  function updateEntryFormVisibility(){
+    var sel = document.getElementById("employeeSelect");
+    if (!sel) return;
+    var freeText = document.getElementById("freeTextField");
+    var amountLabel = document.getElementById("amountLabel");
+    var chosen = !!sel.value;
+    if (freeText) freeText.hidden = chosen;
+    if (amountLabel) amountLabel.textContent = chosen ? "Сколько взял, ₽" : "Сумма, ₽";
   }
 
   function render(){
@@ -733,6 +788,7 @@
     else if (view === "employees") renderEmployeesView();
     else renderDayView(currentDay);
     if (vals) restoreFormValues(vals);
+    if (view === "day") updateEntryFormVisibility();
   }
 
   // ---------- light DOM-only refresh for the 15:00 / midnight rollover ----------
@@ -743,6 +799,12 @@
   }
 
   // ---------- events (delegated so re-renders don't lose listeners) ----------
+  appEl.addEventListener("change", function(e){
+    if (e.target && e.target.id === "employeeSelect"){
+      updateEntryFormVisibility();
+    }
+  });
+
   appEl.addEventListener("click", function(e){
     var el = e.target.closest("[data-action]");
     if (!el) return;
@@ -753,6 +815,7 @@
       render();
     } else if (action === "back-to-week"){
       view = "week";
+      editingEmployeeId = null;
       render();
     } else if (action === "prev-week"){
       weekStart = addDays(weekStart, -7);
@@ -775,9 +838,17 @@
       deleteEntry(el.dataset.id);
     } else if (action === "open-employees"){
       view = "employees";
+      editingEmployeeId = null;
       render();
     } else if (action === "delete-employee"){
+      if (editingEmployeeId === el.dataset.id) editingEmployeeId = null;
       deleteEmployee(el.dataset.id);
+    } else if (action === "edit-employee-salary"){
+      editingEmployeeId = el.dataset.id;
+      render();
+    } else if (action === "cancel-edit-employee"){
+      editingEmployeeId = null;
+      render();
     }
   });
 
@@ -786,15 +857,18 @@
       e.preventDefault();
       var amountInput = document.getElementById("amountInput");
       var textInput = document.getElementById("textInput");
+      var employeeSelect = document.getElementById("employeeSelect");
       var amount = parseFloat(amountInput.value);
       if (!amount || amount <= 0){
         toast("Укажите сумму больше нуля");
         return;
       }
-      var text = textInput.value.trim();
+      var text = employeeSelect && employeeSelect.value ? employeeSelect.value : textInput.value.trim();
       amountInput.value = "";
       textInput.value = "";
+      if (employeeSelect) employeeSelect.value = "";
       addEntry(currentDay, amount, text);
+      updateEntryFormVisibility();
       var freshAmount = document.getElementById("amountInput");
       if (freshAmount) freshAmount.focus();
     } else if (e.target && e.target.id === "addEmployeeForm"){
@@ -808,7 +882,7 @@
         return;
       }
       if (!salary || salary <= 0){
-        toast("Укажите оклад больше нуля");
+        toast("Укажите зарплату больше нуля");
         return;
       }
       if (findEmployeeByName(name)){
@@ -820,6 +894,15 @@
       addEmployee(name, salary);
       var freshName = document.getElementById("empNameInput");
       if (freshName) freshName.focus();
+    } else if (e.target && e.target.id === "editSalaryForm"){
+      e.preventDefault();
+      var editSalaryInput = document.getElementById("editSalaryInput");
+      var newSalary = parseFloat(editSalaryInput.value);
+      if (!newSalary || newSalary <= 0){
+        toast("Укажите зарплату больше нуля");
+        return;
+      }
+      updateEmployeeSalary(e.target.dataset.id, newSalary);
     }
   });
 
@@ -837,13 +920,12 @@
   setInterval(tick, 30000);
 })();
 </script>
-
 <script>
-if ("serviceWorker" in navigator) {
-  window.addEventListener("load", function(){
-    navigator.serviceWorker.register("sw.js").catch(function(){});
-  });
-}
+  if ("serviceWorker" in navigator) {
+    window.addEventListener("load", function () {
+      navigator.serviceWorker.register("sw.js").catch(function () {});
+    });
+  }
 </script>
 </body>
 </html>
