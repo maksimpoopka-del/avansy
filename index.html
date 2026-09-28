@@ -248,27 +248,6 @@
   }
   .import-confirm-text{ font-size: 13px; line-height:1.5; }
 
-  /* VPN links view */
-  .vpn-list{ display:flex; flex-direction:column; gap:8px; }
-  .vpn-row{
-    display:flex; flex-direction:column; gap:10px;
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: var(--radius-s);
-    padding: 10px 12px;
-  }
-  .vpn-name{ font-weight:600; font-size: 14px; margin-bottom: 2px; }
-  .vpn-link{
-    color: var(--text-dim); font-size: 11px; line-height:1.4;
-    overflow-wrap: anywhere;
-  }
-  .vpn-row-actions{ display:flex; gap:8px; }
-  .vpn-row-actions .add-btn{ flex:1; padding:9px; font-size:13px; }
-  .vpn-row-actions .del{
-    flex:none; background:none; border:1px solid var(--border); color: var(--danger);
-    border-radius: var(--radius-s); padding:9px 14px; font-size:13px; cursor:pointer; font-family: inherit;
-  }
-
   /* day view */
   .back-row{ display:flex; align-items:center; gap:10px; margin-bottom: 14px; }
   .back-btn{
@@ -478,48 +457,13 @@
     }
   }
 
-  // VPN links: quick-copy notes saved to this phone's own storage. The list
-  // below also ships pre-filled with a fixed set of default servers, built
-  // into the app itself, so anyone who opens the app sees them right away
-  // and can just tap "Копировать" — no need to type or import anything.
-  var VPN_LINKS_KEY = "avansy-vpn-links-v1";
-  var DEFAULT_VPN_LINKS = [
-    { name: "🇬🇧 Великобритания N1 (YouTube без рекл.)", link: "vless://184bcada-3536-4185-9b11-b87d8e7fd385@en-n1.gsupport.support:443?encryption=none&flow=xtls-rprx-vision&type=tcp&security=reality&sni=en3.freehiliters.com&fp=firefox&pbk=hyOYRfDSIYyqALQt3N2H0RjK8gbV1JvPTkNACC4PJF8&sid=8718c58d3d51db59#%F0%9F%87%AC%F0%9F%87%A7%20%D0%92%D0%B5%D0%BB%D0%B8%D0%BA%D0%BE%D0%B1%D1%80%D0%B8%D1%82%D0%B0%D0%BD%D0%B8%D1%8F%20N1%20(YouTube%20%D0%B1%D0%B5%D0%B7%20%D1%80%D0%B5%D0%BA)" },
-    { name: "🇩🇪 Германия N1", link: "vless://184bcada-3536-4185-9b11-b87d8e7fd385@de-n3.gsupport.support:443?encryption=none&flow=xtls-rprx-vision&type=tcp&security=reality&sni=de3.findreplayfoals.com&fp=firefox&pbk=jIq_COD-tIXTvgDn-TslFGtB_a8HVgUOOIlUByv8fkg&sid=8718c58d3d51db59#%F0%9F%87%A9%F0%9F%87%AA%20%D0%93%D0%B5%D1%80%D0%BC%D0%B0%D0%BD%D0%B8%D1%8F%20N1" },
-    { name: "🇸🇪 Швеция N1 (YouTube без рекламы)", link: "vless://184bcada-3536-4185-9b11-b87d8e7fd385@sw-n1.gsupport.support:443?encryption=none&flow=xtls-rprx-vision&type=tcp&security=reality&sni=sw1.wolffast.net&fp=firefox&pbk=hyOYRfDSIYyqALQt3N2H0RjK8gbV1JvPTkNACC4PJF8&sid=8718c58d3d51db59#%F0%9F%87%B8%F0%9F%87%AA%20%D0%A8%D0%B2%D0%B5%D1%86%D0%B8%D1%8F%20N1%20(YouTube%20%D0%B1%D0%B5%D0%B7%20%D1%80%D0%B5%D0%BA%D0%BB%D0%B0%D0%BC%D1%8B)" }
-  ];
-  function loadVpnLinks(){
-    try {
-      var raw = localStorage.getItem(VPN_LINKS_KEY);
-      if (raw) return JSON.parse(raw);
-      var seeded = DEFAULT_VPN_LINKS.map(function(item, i){
-        return { id: "vpn-default-" + i, name: item.name, link: item.link, createdAt: Date.now() };
-      });
-      try { localStorage.setItem(VPN_LINKS_KEY, JSON.stringify(seeded)); } catch (e){}
-      return seeded;
-    } catch (e){
-      return DEFAULT_VPN_LINKS.map(function(item, i){
-        return { id: "vpn-default-" + i, name: item.name, link: item.link, createdAt: Date.now() };
-      });
-    }
-  }
-  function persistVpnLinks(){
-    try {
-      localStorage.setItem(VPN_LINKS_KEY, JSON.stringify(vpnLinks));
-    } catch (e){
-      storageAvailable = false;
-    }
-  }
-
   // ---------- state ----------
   var entries = loadEntries(); // {id, date, amount, text, createdAt}
   var employees = loadEmployees(); // {id, name, salary}
-  var vpnLinks = loadVpnLinks(); // {id, name, link, createdAt}
-  var view = "week"; // "week" | "day" | "employees" | "vpn"
+  var view = "week"; // "week" | "day" | "employees"
   var editingEmployeeId = null;
   var confirmDeleteEmployeeId = null;
   var pendingImport = null; // parsed backup file awaiting confirmation
-  var pendingVpnImport = null; // links decoded from a one-time #import-vpn= link, awaiting confirmation
   var weekStart = mondayOf(todayYMD());
   var currentDay = null;
   var historyOpen = false;
@@ -652,107 +596,6 @@
     render();
   }
 
-  // ---------- VPN links: saved locally, just for quick copying on this phone ----------
-  function addVpnLink(name, link){
-    vpnLinks.push({
-      id: "vpn-" + Date.now() + "-" + Math.random().toString(36).slice(2),
-      name: name || "", link: link, createdAt: Date.now()
-    });
-    persistVpnLinks();
-    toast("Ссылка сохранена");
-    render();
-  }
-  function deleteVpnLink(id){
-    vpnLinks = vpnLinks.filter(function(v){ return v.id !== id; });
-    persistVpnLinks();
-    render();
-  }
-  function copyToClipboard(text){
-    if (navigator.clipboard && navigator.clipboard.writeText){
-      navigator.clipboard.writeText(text).then(function(){
-        toast("Скопировано");
-      }).catch(function(){
-        fallbackCopyToClipboard(text);
-      });
-    } else {
-      fallbackCopyToClipboard(text);
-    }
-  }
-  function fallbackCopyToClipboard(text){
-    try {
-      var ta = document.createElement("textarea");
-      ta.value = text;
-      ta.style.position = "fixed";
-      ta.style.left = "-9999px";
-      ta.style.top = "0";
-      document.body.appendChild(ta);
-      ta.focus();
-      ta.select();
-      var ok = document.execCommand("copy");
-      document.body.removeChild(ta);
-      toast(ok ? "Скопировано" : "Не удалось скопировать — выделите текст вручную");
-    } catch (e){
-      toast("Не удалось скопировать — выделите текст вручную");
-    }
-  }
-
-  // One-time VPN-link import via a private URL fragment (#import-vpn=...).
-  // The part after "#" never leaves the browser (it isn't sent to any server),
-  // so this only works for someone who was handed this exact full link —
-  // the app's own source code never contains any real link.
-  function base64UrlDecode(str){
-    str = String(str).replace(/-/g, "+").replace(/_/g, "/");
-    while (str.length % 4) str += "=";
-    var binary = atob(str);
-    var bytes = new Uint8Array(binary.length);
-    for (var i=0;i<binary.length;i++) bytes[i] = binary.charCodeAt(i);
-    if (typeof TextDecoder !== "undefined") return new TextDecoder("utf-8").decode(bytes);
-    return decodeURIComponent(escape(binary));
-  }
-  function checkVpnImportHash(){
-    var hash = window.location.hash || "";
-    var m = hash.match(/import-vpn=([^&]+)/);
-    if (!m) return;
-    // Clear it right away so a refresh doesn't keep re-offering it or leave it in history.
-    history.replaceState(null, "", window.location.pathname + window.location.search);
-    try {
-      var decoded = base64UrlDecode(m[1]);
-      var parsed = JSON.parse(decoded);
-      if (!Array.isArray(parsed) || !parsed.length) return;
-      var clean = parsed.filter(function(item){ return item && typeof item.link === "string" && item.link; })
-        .map(function(item){ return { name: String(item.name || ""), link: String(item.link) }; });
-      if (!clean.length) return;
-      pendingVpnImport = clean;
-      view = "vpn";
-    } catch (e){
-      // Bad or tampered link — silently ignore rather than show a confusing error.
-    }
-  }
-  function confirmVpnImport(){
-    if (!pendingVpnImport) return;
-    var existingLinks = {};
-    vpnLinks.forEach(function(v){ existingLinks[v.link] = true; });
-    var added = 0;
-    pendingVpnImport.forEach(function(item){
-      if (existingLinks[item.link]) return;
-      vpnLinks.push({
-        id: "vpn-" + Date.now() + "-" + Math.random().toString(36).slice(2),
-        name: item.name || "", link: item.link, createdAt: Date.now()
-      });
-      existingLinks[item.link] = true;
-      added++;
-    });
-    persistVpnLinks();
-    var skipped = pendingVpnImport.length - added;
-    pendingVpnImport = null;
-    toast(added ? ("Добавлено ссылок: " + added + (skipped ? ", уже было: " + skipped : "")) : "Все эти ссылки уже сохранены");
-    render();
-  }
-  function cancelVpnImport(){
-    pendingVpnImport = null;
-    render();
-  }
-
   // ---------- backup: export / import all data as one file ----------
   // On claude.ai (the Artifact preview) plain <a download> links do nothing —
   // the viewer only lets a page hand over a file through this capability.
@@ -768,8 +611,7 @@
       version: 1,
       exportedAt: new Date().toISOString(),
       entries: entries,
-      employees: employees,
-      vpnLinks: vpnLinks
+      employees: employees
     };
     var json = JSON.stringify(payload, null, 2);
     var filename = "avansy-backup-" + todayYMD() + ".json";
@@ -819,10 +661,8 @@
     if (!pendingImport) return;
     entries = pendingImport.entries;
     employees = pendingImport.employees;
-    if (Array.isArray(pendingImport.vpnLinks)) vpnLinks = pendingImport.vpnLinks;
     persistEntries();
     persistEmployees();
-    persistVpnLinks();
     pendingImport = null;
     toast("Данные восстановлены из копии");
     render();
@@ -833,7 +673,7 @@
   }
 
   // ---------- rendering ----------
-  var TRACKED_FIELD_IDS = ["amountInput", "employeeSelect", "empNameInput", "editNameInput", "editSalaryInput", "vpnNameInput", "vpnLinkInput"];
+  var TRACKED_FIELD_IDS = ["amountInput", "employeeSelect", "empNameInput", "editNameInput", "editSalaryInput"];
   function captureFormValues(){
     var vals = { focus: document.activeElement && document.activeElement.id };
     TRACKED_FIELD_IDS.forEach(function(id){
@@ -913,7 +753,6 @@
       '<div class="day-list">' + cards + '</div>' +
       '<div class="bottom-actions">' +
         '<button type="button" class="history-toggle" data-action="open-employees">Сотрудники</button>' +
-        '<button type="button" class="history-toggle" data-action="open-vpn">VPN-ссылки</button>' +
       '</div>' +
       '<div class="bottom-actions">' +
         '<button type="button" class="history-toggle" data-action="toggle-history">' + (historyOpen ? "Скрыть прошлые недели" : "Показать прошлые недели") + '</button>' +
@@ -1076,7 +915,6 @@
     if (pendingImport){
       var impEntriesCount = pendingImport.entries.length;
       var impEmpCount = pendingImport.employees.length;
-      var impVpnCount = Array.isArray(pendingImport.vpnLinks) ? pendingImport.vpnLinks.length : 0;
       var impWhen = "";
       if (pendingImport.exportedAt){
         var d = new Date(pendingImport.exportedAt);
@@ -1086,7 +924,6 @@
         '<div class="import-confirm">' +
           '<div class="import-confirm-text">Файл содержит ' + impEntriesCount + (impEntriesCount === 1 ? " запись" : " записей") +
             ", " + impEmpCount + (impEmpCount === 1 ? " сотрудника" : " сотрудников") +
-            (impVpnCount ? " и " + impVpnCount + (impVpnCount === 1 ? " VPN-ссылку" : " VPN-ссылок") : "") +
             impWhen + '. Заменить текущие данные на этом телефоне?</div>' +
           '<div class="edit-salary-actions">' +
             '<button type="button" class="add-btn" data-action="confirm-import">Заменить данные</button>' +
@@ -1113,63 +950,14 @@
       '<div class="section-label">Список</div>' +
       '<div class="employees-list">' + rows + '</div>' +
       '<div class="section-label">Резервная копия</div>' +
-      '<div class="backup-note">Сохраняет записи, сотрудников и VPN-ссылки в один файл, который можно отправить себе в Telegram, почту или облако — и восстановить на новом телефоне. Файл содержит те же данные доступа, что и сами ссылки, поэтому пересылай его только себе.</div>' +
+      '<div class="backup-note">Сохраняет записи и сотрудников в один файл, который можно отправить себе в Telegram, почту или облако — и восстановить на новом телефоне.</div>' +
       backupHtml;
   }
 
-  function renderVpnView(){
-    var rows = vpnLinks.length
-      ? vpnLinks.map(function(v){
-          return (
-            '<div class="vpn-row">' +
-              '<div class="vpn-row-main">' +
-                (v.name ? '<div class="vpn-name">' + escapeHtml(v.name) + '</div>' : '') +
-                '<div class="vpn-link mono">' + escapeHtml(v.link) + '</div>' +
-              '</div>' +
-              '<div class="vpn-row-actions">' +
-                '<button type="button" class="add-btn" data-action="copy-vpn-link" data-id="' + v.id + '">Копировать</button>' +
-                '<button type="button" class="del" data-action="delete-vpn-link" data-id="' + v.id + '">Удалить</button>' +
-              '</div>' +
-            '</div>'
-          );
-        }).join("")
-      : '<div class="empty-note">Пока нет сохранённых ссылок.</div>';
-
-    var importHtml = "";
-    if (pendingVpnImport){
-      var importNames = pendingVpnImport.map(function(item){ return item.name || "без названия"; }).join(", ");
-      importHtml =
-        '<div class="import-confirm" style="margin-bottom:16px;">' +
-          '<div class="import-confirm-text">Найдена ссылка на ' + pendingVpnImport.length +
-            (pendingVpnImport.length === 1 ? " сервер" : " серверов") + ': ' + escapeHtml(importNames) +
-            '. Добавить их в список ниже?</div>' +
-          '<div class="edit-salary-actions">' +
-            '<button type="button" class="add-btn" data-action="confirm-vpn-import">Добавить</button>' +
-            '<button type="button" class="cancel-btn" data-action="cancel-vpn-import">Отмена</button>' +
-          '</div>' +
-        '</div>';
-    }
-
-    appEl.innerHTML =
-      '<div class="back-row"><button type="button" class="back-btn" data-action="back-to-week">‹ К неделе</button></div>' +
-      '<div class="day-header"><div class="weekday">VPN-ссылки</div><div class="date mono">готовы к копированию</div></div>' +
-      '<div class="backup-note">Ниже уже готовые серверы — просто нажми «Копировать» и вставь в Happ. Можно добавить и свои ссылки — они сохранятся только в памяти этого телефона.</div>' +
-      importHtml +
-      '<div class="section-label">Добавить ссылку</div>' +
-      '<form class="entry-form" id="addVpnForm">' +
-        '<div class="field"><input id="vpnNameInput" type="text" placeholder="Название (например, Германия)" maxlength="60"></div>' +
-        '<div class="field"><textarea id="vpnLinkInput" placeholder="Вставьте ссылку vless://... целиком" rows="3" required></textarea></div>' +
-        '<button type="submit" class="add-btn">Сохранить ссылку</button>' +
-      '</form>' +
-      '<div class="section-label">Сохранённые ссылки</div>' +
-      '<div class="vpn-list">' + rows + '</div>';
-  }
-
   function render(){
-    var vals = (view === "day" || view === "employees" || view === "vpn") ? captureFormValues() : null;
+    var vals = (view === "day" || view === "employees") ? captureFormValues() : null;
     if (view === "week") renderWeekView();
     else if (view === "employees") renderEmployeesView();
-    else if (view === "vpn") renderVpnView();
     else renderDayView(currentDay);
     if (vals) restoreFormValues(vals);
   }
@@ -1247,21 +1035,6 @@
       confirmImport();
     } else if (action === "cancel-import"){
       cancelImport();
-    } else if (action === "open-vpn"){
-      view = "vpn";
-      render();
-    } else if (action === "copy-vpn-link"){
-      var vpnItem = null;
-      for (var vi=0; vi<vpnLinks.length; vi++){
-        if (vpnLinks[vi].id === el.dataset.id){ vpnItem = vpnLinks[vi]; break; }
-      }
-      if (vpnItem) copyToClipboard(vpnItem.link);
-    } else if (action === "delete-vpn-link"){
-      deleteVpnLink(el.dataset.id);
-    } else if (action === "confirm-vpn-import"){
-      confirmVpnImport();
-    } else if (action === "cancel-vpn-import"){
-      cancelVpnImport();
     }
   });
 
@@ -1326,19 +1099,6 @@
       }
       var newSalary = parseFloat(editSalaryInput.value) || 0;
       updateEmployee(editId, newName, newSalary);
-    } else if (e.target && e.target.id === "addVpnForm"){
-      e.preventDefault();
-      var vpnNameInput = document.getElementById("vpnNameInput");
-      var vpnLinkInput = document.getElementById("vpnLinkInput");
-      var vpnName = vpnNameInput.value.trim();
-      var vpnLink = vpnLinkInput.value.trim();
-      if (!vpnLink){
-        toast("Вставьте ссылку");
-        return;
-      }
-      vpnNameInput.value = "";
-      vpnLinkInput.value = "";
-      addVpnLink(vpnName, vpnLink);
     }
   });
 
@@ -1347,15 +1107,6 @@
     bannerSlot.innerHTML = '<div class="banner">' + html + '</div>';
   }
 
-  // Also handle the case where the app is already open (home-screen PWA sitting
-  // in the background) and the import link is opened while it's still loaded —
-  // that lands as a same-document fragment change, not a fresh page load.
-  window.addEventListener("hashchange", function(){
-    checkVpnImportHash();
-    render();
-  });
-
-  checkVpnImportHash();
   render();
 
   if (!storageAvailable){
