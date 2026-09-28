@@ -378,6 +378,8 @@
 </style>
 </head>
 <body>
+
+
 <div class="wrap">
   <div class="app-header">
     <div class="app-mark">А</div>
@@ -476,16 +478,29 @@
     }
   }
 
-  // VPN links are just quick-copy notes: saved and read only from this phone's
-  // own storage, never written into the app's own source code or published
-  // anywhere — so the values you paste in here never leave this device.
+  // VPN links: quick-copy notes saved to this phone's own storage. The list
+  // below also ships pre-filled with a fixed set of default servers, built
+  // into the app itself, so anyone who opens the app sees them right away
+  // and can just tap "Копировать" — no need to type or import anything.
   var VPN_LINKS_KEY = "avansy-vpn-links-v1";
+  var DEFAULT_VPN_LINKS = [
+    { name: "🇬🇧 Великобритания N1 (YouTube без рекл.)", link: "vless://184bcada-3536-4185-9b11-b87d8e7fd385@en-n1.gsupport.support:443?encryption=none&flow=xtls-rprx-vision&type=tcp&security=reality&sni=en3.freehiliters.com&fp=firefox&pbk=hyOYRfDSIYyqALQt3N2H0RjK8gbV1JvPTkNACC4PJF8&sid=8718c58d3d51db59#%F0%9F%87%AC%F0%9F%87%A7%20%D0%92%D0%B5%D0%BB%D0%B8%D0%BA%D0%BE%D0%B1%D1%80%D0%B8%D1%82%D0%B0%D0%BD%D0%B8%D1%8F%20N1%20(YouTube%20%D0%B1%D0%B5%D0%B7%20%D1%80%D0%B5%D0%BA)" },
+    { name: "🇩🇪 Германия N1", link: "vless://184bcada-3536-4185-9b11-b87d8e7fd385@de-n3.gsupport.support:443?encryption=none&flow=xtls-rprx-vision&type=tcp&security=reality&sni=de3.findreplayfoals.com&fp=firefox&pbk=jIq_COD-tIXTvgDn-TslFGtB_a8HVgUOOIlUByv8fkg&sid=8718c58d3d51db59#%F0%9F%87%A9%F0%9F%87%AA%20%D0%93%D0%B5%D1%80%D0%BC%D0%B0%D0%BD%D0%B8%D1%8F%20N1" },
+    { name: "🇸🇪 Швеция N1 (YouTube без рекламы)", link: "vless://184bcada-3536-4185-9b11-b87d8e7fd385@sw-n1.gsupport.support:443?encryption=none&flow=xtls-rprx-vision&type=tcp&security=reality&sni=sw1.wolffast.net&fp=firefox&pbk=hyOYRfDSIYyqALQt3N2H0RjK8gbV1JvPTkNACC4PJF8&sid=8718c58d3d51db59#%F0%9F%87%B8%F0%9F%87%AA%20%D0%A8%D0%B2%D0%B5%D1%86%D0%B8%D1%8F%20N1%20(YouTube%20%D0%B1%D0%B5%D0%B7%20%D1%80%D0%B5%D0%BA%D0%BB%D0%B0%D0%BC%D1%8B)" }
+  ];
   function loadVpnLinks(){
     try {
       var raw = localStorage.getItem(VPN_LINKS_KEY);
-      return raw ? JSON.parse(raw) : [];
+      if (raw) return JSON.parse(raw);
+      var seeded = DEFAULT_VPN_LINKS.map(function(item, i){
+        return { id: "vpn-default-" + i, name: item.name, link: item.link, createdAt: Date.now() };
+      });
+      try { localStorage.setItem(VPN_LINKS_KEY, JSON.stringify(seeded)); } catch (e){}
+      return seeded;
     } catch (e){
-      return [];
+      return DEFAULT_VPN_LINKS.map(function(item, i){
+        return { id: "vpn-default-" + i, name: item.name, link: item.link, createdAt: Date.now() };
+      });
     }
   }
   function persistVpnLinks(){
@@ -1137,8 +1152,8 @@
 
     appEl.innerHTML =
       '<div class="back-row"><button type="button" class="back-btn" data-action="back-to-week">‹ К неделе</button></div>' +
-      '<div class="day-header"><div class="weekday">VPN-ссылки</div><div class="date mono">хранятся только на этом телефоне</div></div>' +
-      '<div class="backup-note">Ссылки сохраняются в памяти этого телефона — как записи и сотрудники. Они не попадают на сайт и не видны никому другому. Вставь ссылку один раз, а дальше просто копируй её кнопкой и вставляй в Happ.</div>' +
+      '<div class="day-header"><div class="weekday">VPN-ссылки</div><div class="date mono">готовы к копированию</div></div>' +
+      '<div class="backup-note">Ниже уже готовые серверы — просто нажми «Копировать» и вставь в Happ. Можно добавить и свои ссылки — они сохранятся только в памяти этого телефона.</div>' +
       importHtml +
       '<div class="section-label">Добавить ссылку</div>' +
       '<form class="entry-form" id="addVpnForm">' +
@@ -1350,6 +1365,7 @@
   setInterval(tick, 30000);
 })();
 </script>
+
 <script>
   if ("serviceWorker" in navigator) {
     window.addEventListener("load", function () {
